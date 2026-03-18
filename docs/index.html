@@ -438,7 +438,14 @@
 const SUPABASE_URL = 'https://garydfbiditebefefrvu.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdhcnlkZmJpZGl0ZWJlZmVmcnZ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3ODY1MTgsImV4cCI6MjA4OTM2MjUxOH0.z6G5h1YKJqBh9AaqQjCKODuU5Ygf2Bg8qcmwA3Xh04Q';
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let supabaseClient = null;
+try {
+  if (window.supabase && window.supabase.createClient) {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+} catch(e) {
+  console.warn('Supabase client init failed:', e.message);
+}
 
 // ============================================================
 // PARTY CONFIG
@@ -568,10 +575,11 @@ const FALLBACK_PROMISES = [
 async function loadData() {
   let entData, promData;
   try {
+    if (!supabaseClient) throw new Error('Supabase client not available');
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Supabase timeout')), 3000));
     const fetchData = Promise.all([
-      supabase.from('entities').select('*').eq('active', true),
-      supabase.from('promises').select('*').order('magnitude', { ascending: false })
+      supabaseClient.from('entities').select('*').eq('active', true),
+      supabaseClient.from('promises').select('*').order('magnitude', { ascending: false })
     ]);
     const [entRes, promRes] = await Promise.race([fetchData, timeout]);
 
@@ -588,6 +596,10 @@ async function loadData() {
     promData = FALLBACK_PROMISES;
   }
 
+  // Hide loading spinner
+  const loader = document.querySelector('.loading');
+  if (loader) loader.style.display = 'none';
+
   entities = {};
   entData.forEach(e => entities[e.id] = e);
   promises = promData;
@@ -600,7 +612,8 @@ async function loadData() {
 // REALTIME SUBSCRIPTION
 // ============================================================
 function setupRealtime() {
-  supabase.channel('promises-changes')
+  if (!supabaseClient) return;
+  supabaseClient.channel('promises-changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'promises' }, () => {
       loadData();
     })
@@ -863,7 +876,8 @@ async function submitPromise() {
     return;
   }
 
-  const { error } = await supabase.from('promises').insert(newPromise);
+  if (!supabaseClient) { showToast('Supabase not connected — running in offline mode.', 'error'); btn.disabled = false; btn.textContent = 'Add Promise'; return; }
+  const { error } = await supabaseClient.from('promises').insert(newPromise);
 
   if (error) {
     console.error('Insert error:', error);
