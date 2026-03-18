@@ -854,10 +854,12 @@ const FALLBACK_PROMISES = [
 async function loadData() {
   let entData, promData;
   try {
-    const [entRes, promRes] = await Promise.all([
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Supabase timeout')), 3000));
+    const fetching = Promise.all([
       supabase.from('entities').select('*').eq('active', true),
       supabase.from('promises').select('*').order('magnitude', { ascending: false })
     ]);
+    const [entRes, promRes] = await Promise.race([fetching, timeout]);
 
     if (!entRes.error && !promRes.error && entRes.data.length > 0 && promRes.data.length > 0) {
       entData = entRes.data;
@@ -875,6 +877,9 @@ async function loadData() {
   entities = {};
   entData.forEach(e => entities[e.id] = e);
   promises = promData;
+
+  const loader = document.querySelector('.loading');
+  if (loader) loader.style.display = 'none';
 
   populateEntityDropdown();
   render();
