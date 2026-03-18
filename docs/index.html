@@ -244,6 +244,7 @@
   .status-badge.compromised { background: var(--compromised); }
   .status-badge.in_progress { background: var(--in-progress); }
   .status-badge.stalled { background: var(--stalled); }
+  .status-badge.made { background: #64748b; }
 
   .promise-card-info { flex: 1; }
   .promise-card-summary { font-size: 0.95rem; font-weight: 600; }
@@ -328,6 +329,11 @@
   .party-sinn-fein    { --party-color: #326832; --party-dark: #1e3f1e; border-color: #326832; }
   .party-labour       { --party-color: #cc0000; --party-dark: #880000; border-color: #cc0000; }
   .party-social-democrats { --party-color: #752f8a; --party-dark: #4a1d57; border-color: #752f8a; }
+  .party-pbp          { --party-color: #e6332a; --party-dark: #a1221c; border-color: #e6332a; }
+  .party-aontu        { --party-color: #44b08c; --party-dark: #2d7a60; border-color: #44b08c; }
+  .party-ind-ireland  { --party-color: #1e7a5a; --party-dark: #124a36; border-color: #1e7a5a; }
+  .party-r2c          { --party-color: #d4622b; --party-dark: #9a4620; border-color: #d4622b; }
+  .party-independent  { --party-color: #718096; --party-dark: #4a5568; border-color: #718096; }
   .party-institution  { --party-color: #4a5568; --party-dark: #2d3748; border-color: #4a5568; }
   .party-eu           { --party-color: #003399; --party-dark: #001f5c; border-color: #003399; }
 
@@ -359,6 +365,8 @@
 
 <div class="filters">
   <input type="text" class="search-box" id="searchBox" placeholder="Search promises, people, parties...">
+  <div class="divider"></div>
+  <div class="filter-group" id="typeFilters"></div>
   <div class="divider"></div>
   <div class="filter-group" id="partyFilters"></div>
   <div class="divider"></div>
@@ -468,24 +476,38 @@ const PARTIES = {
   'Sinn Fein':          { css: 'party-sinn-fein',    color: '#326832' },
   'Labour':             { css: 'party-labour',       color: '#cc0000' },
   'Social Democrats':   { css: 'party-social-democrats', color: '#752f8a' },
+  'People Before Profit': { css: 'party-pbp',       color: '#e6332a' },
+  'Aontu':              { css: 'party-aontu',        color: '#44b08c' },
+  'Independent Ireland':{ css: 'party-ind-ireland',  color: '#1e7a5a' },
+  'Right to Change':    { css: 'party-r2c',          color: '#d4622b' },
 };
 
 function getPartyCSS(entity) {
   if (entity.party && PARTIES[entity.party]) return PARTIES[entity.party].css;
   if (entity.entity_type === 'institution' || entity.entity_type === 'agency') return 'party-institution';
-  if (entity.title === 'EU Commissioner') return 'party-eu';
+  if (entity.entity_type === 'mep' || entity.entity_type === 'commissioner') return 'party-eu';
+  if (!entity.party) return 'party-independent';
   return 'party-institution';
 }
 
 function getPartyColor(entity) {
   if (entity.party && PARTIES[entity.party]) return PARTIES[entity.party].color;
   if (entity.entity_type === 'institution' || entity.entity_type === 'agency') return '#4a5568';
+  if (!entity.party) return '#718096';
   return '#4a5568';
 }
 
 function getPartyLabel(entity) {
-  return entity.party || (entity.entity_type === 'institution' || entity.entity_type === 'agency' ? 'Institution' : 'Other');
+  if (entity.party) return entity.party;
+  if (entity.entity_type === 'institution' || entity.entity_type === 'agency') return 'Institution';
+  return 'Independent';
 }
+
+const ENTITY_TYPE_LABELS = {
+  td: 'TD', senator: 'Senator', mep: 'MEP', minister: 'Minister',
+  commissioner: 'Commissioner', institution: 'Institution', agency: 'Agency',
+  local_councillor: 'Councillor', executive: 'Executive', other: 'Other'
+};
 
 function renderSources(p) {
   const src = p.sources;
@@ -516,6 +538,7 @@ const STATUS_COLORS = {
 let entities = {};
 let promises = [];
 let currentView = 'stickers';
+let filterType = 'all';
 let filterParty = 'all';
 let filterStatus = 'all';
 let searchQuery = '';
@@ -660,17 +683,16 @@ function getEntityPromises(entityId) {
 
 function matchesFilters(promise) {
   if (filterStatus !== 'all' && promise.status !== filterStatus) return false;
+  const e = entities[promise.entity_id];
+  if (!e) return false;
+  if (filterType !== 'all' && e.entity_type !== filterType) return false;
   if (filterParty !== 'all') {
-    const e = entities[promise.entity_id];
-    if (!e) return false;
     const pl = getPartyLabel(e);
     if (pl !== filterParty) return false;
   }
   if (searchQuery) {
     const q = searchQuery.toLowerCase();
-    const e = entities[promise.entity_id];
-    if (!e) return false;
-    const hay = (promise.summary + ' ' + (promise.outcome_summary||'') + ' ' + (promise.tags||[]).join(' ') + ' ' + e.name + ' ' + (e.party||'')).toLowerCase();
+    const hay = (promise.summary + ' ' + (promise.outcome_summary||'') + ' ' + (promise.tags||[]).join(' ') + ' ' + e.name + ' ' + (e.party||'') + ' ' + (e.jurisdiction||'')).toLowerCase();
     if (!hay.includes(q)) return false;
   }
   return true;
@@ -688,21 +710,33 @@ function entityFilteredPromises(entityId) {
 // RENDER: FILTERS & STATS
 // ============================================================
 function renderFilters() {
+  // Entity type filter
+  const typeSet = new Set();
+  Object.values(entities).forEach(e => { if (e.entity_type) typeSet.add(e.entity_type); });
+  const typeArr = [...typeSet].sort();
+  document.getElementById('typeFilters').innerHTML =
+    `<button class="filter-pill ${filterType==='all'?'active':''}" onclick="setTypeFilter('all')">All Roles</button>` +
+    typeArr.filter(t => ENTITY_TYPE_LABELS[t]).map(t =>
+      `<button class="filter-pill ${filterType===t?'active':''}" onclick="setTypeFilter('${t}')">${ENTITY_TYPE_LABELS[t]}s</button>`
+    ).join('');
+
+  // Party filter
   const partySet = new Set();
   Object.values(entities).forEach(e => partySet.add(getPartyLabel(e)));
   const partyArr = [...partySet].sort();
   document.getElementById('partyFilters').innerHTML =
-    `<button class="filter-pill ${filterParty==='all'?'active':''}" onclick="setPartyFilter('all')">All</button>` +
+    `<button class="filter-pill ${filterParty==='all'?'active':''}" onclick="setPartyFilter('all')">All Parties</button>` +
     partyArr.map(p => {
-      const color = PARTIES[p] ? PARTIES[p].color : '#4a5568';
+      const color = PARTIES[p] ? PARTIES[p].color : '#718096';
       return `<button class="filter-pill party-pill ${filterParty===p?'active':''}" onclick="setPartyFilter('${p.replace(/'/g,"\\'")}')">
         <span class="party-dot" style="background:${color}"></span>${p}
       </button>`;
     }).join('');
 
+  // Status filter
   document.getElementById('statusFilters').innerHTML =
     `<button class="filter-pill ${filterStatus==='all'?'active':''}" onclick="setStatusFilter('all')">All</button>` +
-    ['kept','broken','compromised','in_progress','stalled'].map(k =>
+    ['kept','broken','compromised','in_progress','stalled','made'].map(k =>
       `<button class="filter-pill ${filterStatus===k?'active':''}" onclick="setStatusFilter('${k}')">${STATUS_LABELS[k]}</button>`
     ).join('');
 }
@@ -746,7 +780,7 @@ function renderStickers() {
         <div class="sticker-avatar">${initials}</div>
         <div class="sticker-identity">
           <div class="sticker-name">${e.name}</div>
-          <div class="sticker-title">${e.title || e.entity_type}</div>
+          <div class="sticker-title">${e.title || (ENTITY_TYPE_LABELS[e.entity_type] || e.entity_type)}</div>
           <div class="sticker-party-badge">${getPartyLabel(e)}</div>
         </div>
       </div>
@@ -845,6 +879,7 @@ function setView(view) {
   render();
 }
 
+function setTypeFilter(t) { filterType = t; render(); }
 function setPartyFilter(p) { filterParty = p; render(); }
 function setStatusFilter(s) { filterStatus = s; render(); }
 
