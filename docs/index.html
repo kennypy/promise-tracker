@@ -244,7 +244,6 @@
   .status-badge.compromised { background: var(--compromised); }
   .status-badge.in_progress { background: var(--in-progress); }
   .status-badge.stalled { background: var(--stalled); }
-  .status-badge.made { background: #64748b; }
 
   .promise-card-info { flex: 1; }
   .promise-card-summary { font-size: 0.95rem; font-weight: 600; }
@@ -262,17 +261,6 @@
   .detail-block blockquote { border-left: 3px solid var(--accent); padding-left: 0.75rem; font-style: italic; color: var(--text2); font-size: 0.85rem; }
   .tag-list { display: flex; gap: 0.25rem; flex-wrap: wrap; }
   .tag { padding: 0.1rem 0.45rem; border-radius: 4px; background: var(--bg); font-size: 0.65rem; color: var(--text2); border: 1px solid var(--border); }
-
-  .source-links { margin-top: 0.3rem; display: flex; gap: 0.4rem; flex-wrap: wrap; }
-  .source-link {
-    display: inline-flex; align-items: center; gap: 0.2rem;
-    font-size: 0.65rem; color: var(--accent); text-decoration: none;
-    padding: 0.1rem 0.45rem; border-radius: 4px;
-    background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.15);
-    transition: background 0.15s, border-color 0.15s;
-  }
-  .source-link:hover { background: rgba(56, 189, 248, 0.18); border-color: var(--accent); text-decoration: underline; }
-  .source-link::before { content: '🔗'; font-size: 0.55rem; }
 
   .expand-arrow {
     color: var(--text2); font-size: 0.7rem; transition: transform 0.2s; margin-top: 0.2rem;
@@ -329,11 +317,6 @@
   .party-sinn-fein    { --party-color: #326832; --party-dark: #1e3f1e; border-color: #326832; }
   .party-labour       { --party-color: #cc0000; --party-dark: #880000; border-color: #cc0000; }
   .party-social-democrats { --party-color: #752f8a; --party-dark: #4a1d57; border-color: #752f8a; }
-  .party-pbp          { --party-color: #e6332a; --party-dark: #a1221c; border-color: #e6332a; }
-  .party-aontu        { --party-color: #44b08c; --party-dark: #2d7a60; border-color: #44b08c; }
-  .party-ind-ireland  { --party-color: #1e7a5a; --party-dark: #124a36; border-color: #1e7a5a; }
-  .party-r2c          { --party-color: #d4622b; --party-dark: #9a4620; border-color: #d4622b; }
-  .party-independent  { --party-color: #718096; --party-dark: #4a5568; border-color: #718096; }
   .party-institution  { --party-color: #4a5568; --party-dark: #2d3748; border-color: #4a5568; }
   .party-eu           { --party-color: #003399; --party-dark: #001f5c; border-color: #003399; }
 
@@ -366,8 +349,6 @@
 <div class="filters">
   <input type="text" class="search-box" id="searchBox" placeholder="Search promises, people, parties...">
   <div class="divider"></div>
-  <div class="filter-group" id="typeFilters"></div>
-  <div class="divider"></div>
   <div class="filter-group" id="partyFilters"></div>
   <div class="divider"></div>
   <div class="filter-group" id="statusFilters"></div>
@@ -377,7 +358,7 @@
 
 <div class="sticker-grid-wrap" id="stickerView">
   <div class="sticker-grid" id="stickerGrid">
-    <div class="loading"><div class="spinner"></div><br>Loading promises...</div>
+    <div class="loading"><div class="spinner"></div><br>Loading from Supabase...</div>
   </div>
 </div>
 
@@ -457,14 +438,7 @@
 const SUPABASE_URL = 'https://garydfbiditebefefrvu.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdhcnlkZmJpZGl0ZWJlZmVmcnZ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3ODY1MTgsImV4cCI6MjA4OTM2MjUxOH0.z6G5h1YKJqBh9AaqQjCKODuU5Ygf2Bg8qcmwA3Xh04Q';
 
-let supabaseClient = null;
-try {
-  if (window.supabase && window.supabase.createClient) {
-    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  }
-} catch(e) {
-  console.warn('Supabase client init failed:', e.message);
-}
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ============================================================
 // PARTY CONFIG
@@ -476,45 +450,23 @@ const PARTIES = {
   'Sinn Fein':          { css: 'party-sinn-fein',    color: '#326832' },
   'Labour':             { css: 'party-labour',       color: '#cc0000' },
   'Social Democrats':   { css: 'party-social-democrats', color: '#752f8a' },
-  'People Before Profit': { css: 'party-pbp',       color: '#e6332a' },
-  'Aontu':              { css: 'party-aontu',        color: '#44b08c' },
-  'Independent Ireland':{ css: 'party-ind-ireland',  color: '#1e7a5a' },
-  'Right to Change':    { css: 'party-r2c',          color: '#d4622b' },
 };
 
 function getPartyCSS(entity) {
   if (entity.party && PARTIES[entity.party]) return PARTIES[entity.party].css;
   if (entity.entity_type === 'institution' || entity.entity_type === 'agency') return 'party-institution';
-  if (entity.entity_type === 'mep' || entity.entity_type === 'commissioner') return 'party-eu';
-  if (!entity.party) return 'party-independent';
+  if (entity.title === 'EU Commissioner') return 'party-eu';
   return 'party-institution';
 }
 
 function getPartyColor(entity) {
   if (entity.party && PARTIES[entity.party]) return PARTIES[entity.party].color;
   if (entity.entity_type === 'institution' || entity.entity_type === 'agency') return '#4a5568';
-  if (!entity.party) return '#718096';
   return '#4a5568';
 }
 
 function getPartyLabel(entity) {
-  if (entity.party) return entity.party;
-  if (entity.entity_type === 'institution' || entity.entity_type === 'agency') return 'Institution';
-  return 'Independent';
-}
-
-const ENTITY_TYPE_LABELS = {
-  td: 'TD', senator: 'Senator', mep: 'MEP', minister: 'Minister',
-  commissioner: 'Commissioner', institution: 'Institution', agency: 'Agency',
-  local_councillor: 'Councillor', executive: 'Executive', other: 'Other'
-};
-
-function renderSources(p) {
-  const src = p.sources;
-  if (!src || !Array.isArray(src) || src.length === 0) return '';
-  return '<div class="source-links">' + src.map(s =>
-    `<a class="source-link" href="${s.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${s.label}</a>`
-  ).join('') + '</div>';
+  return entity.party || (entity.entity_type === 'institution' || entity.entity_type === 'agency' ? 'Institution' : 'Other');
 }
 
 function getInitials(name) {
@@ -538,7 +490,6 @@ const STATUS_COLORS = {
 let entities = {};
 let promises = [];
 let currentView = 'stickers';
-let filterType = 'all';
 let filterParty = 'all';
 let filterStatus = 'all';
 let searchQuery = '';
@@ -546,79 +497,356 @@ let searchQuery = '';
 // ============================================================
 // EMBEDDED FALLBACK DATA
 // ============================================================
-const E = {
-  SH:'a0000001-0000-0000-0000-000000000001', LV:'a0000001-0000-0000-0000-000000000002',
-  MM:'a0000001-0000-0000-0000-000000000003', DOB:'a0000001-0000-0000-0000-000000000004',
-  ER:'a0000001-0000-0000-0000-000000000005', SD:'a0000001-0000-0000-0000-000000000006',
-  PD:'a0000001-0000-0000-0000-000000000007', ROG:'a0000001-0000-0000-0000-000000000012',
-  HH:'a0000001-0000-0000-0000-000000000013', HM:'a0000001-0000-0000-0000-000000000014',
-  NF:'a0000001-0000-0000-0000-000000000015', CMC:'a0000001-0000-0000-0000-000000000016',
-  GOV:'a0000001-0000-0000-0000-000000000020', SC:'a0000001-0000-0000-0000-000000000023',
-};
 const FALLBACK_ENTITIES = {
-  [E.MM]: { id:E.MM, name:'Micheál Martin', title:'Taoiseach / Tánaiste', party:'Fianna Fail', entity_type:'td', active:true },
-  [E.LV]: { id:E.LV, name:'Leo Varadkar', title:'Taoiseach / Tánaiste', party:'Fine Gael', entity_type:'td', active:true },
-  [E.ER]: { id:E.ER, name:'Eamon Ryan', title:'Minister for Climate & Transport', party:'Green Party', entity_type:'minister', active:true },
-  [E.DOB]:{ id:E.DOB, name:"Darragh O'Brien", title:'Minister for Housing', party:'Fianna Fail', entity_type:'minister', active:true },
-  [E.SD]: { id:E.SD, name:'Stephen Donnelly', title:'Minister for Health', party:'Fianna Fail', entity_type:'minister', active:true },
-  [E.PD]: { id:E.PD, name:'Paschal Donohoe', title:'Minister for Finance', party:'Fine Gael', entity_type:'minister', active:true },
-  [E.ROG]:{ id:E.ROG, name:"Roderic O'Gorman", title:'Minister for Children & Integration', party:'Green Party', entity_type:'minister', active:true },
-  [E.HH]: { id:E.HH, name:'Heather Humphreys', title:'Minister for Social Protection', party:'Fine Gael', entity_type:'minister', active:true },
-  [E.HM]: { id:E.HM, name:'Helen McEntee', title:'Minister for Justice', party:'Fine Gael', entity_type:'minister', active:true },
-  [E.NF]: { id:E.NF, name:'Norma Foley', title:'Minister for Education', party:'Fianna Fail', entity_type:'minister', active:true },
-  [E.SH]: { id:E.SH, name:'Simon Harris', title:'Taoiseach / Minister for Higher Ed', party:'Fine Gael', entity_type:'td', active:true },
-  [E.CMC]:{ id:E.CMC, name:'Charlie McConalogue', title:'Minister for Agriculture', party:'Fianna Fail', entity_type:'minister', active:true },
-  [E.SC]: { id:E.SC, name:'Sláintecare Committee', title:'Cross-party Health Reform', entity_type:'institution', active:true },
-  [E.GOV]:{ id:E.GOV, name:'Government of Ireland', title:'Executive', entity_type:'institution', active:true },
+  "a0000001-0000-0000-0000-000000000001": {id:"a0000001-0000-0000-0000-000000000001", name:"Simon Harris", title:"Taoiseach", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000001-0000-0000-0000-000000000002": {id:"a0000001-0000-0000-0000-000000000002", name:"Leo Varadkar", title:"Former Taoiseach / Tanaiste", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000001-0000-0000-0000-000000000003": {id:"a0000001-0000-0000-0000-000000000003", name:"Micheal Martin", title:"Former Taoiseach / Tanaiste", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000001-0000-0000-0000-000000000004": {id:"a0000001-0000-0000-0000-000000000004", name:"Darragh O'Brien", title:"Minister for Housing", party:"Fianna Fail", entity_type:"minister", active:true},
+  "a0000001-0000-0000-0000-000000000005": {id:"a0000001-0000-0000-0000-000000000005", name:"Eamon Ryan", title:"Former Minister for Transport & Climate", party:"Green Party", entity_type:"minister", active:true},
+  "a0000001-0000-0000-0000-000000000006": {id:"a0000001-0000-0000-0000-000000000006", name:"Stephen Donnelly", title:"Former Minister for Health", party:"Fianna Fail", entity_type:"minister", active:true},
+  "a0000001-0000-0000-0000-000000000007": {id:"a0000001-0000-0000-0000-000000000007", name:"Paschal Donohoe", title:"Minister for Finance", party:"Fine Gael", entity_type:"minister", active:true},
+  "a0000001-0000-0000-0000-000000000008": {id:"a0000001-0000-0000-0000-000000000008", name:"Michael McGrath", title:"EU Commissioner", party:"Fianna Fail", entity_type:"commissioner", active:true},
+  "a0000001-0000-0000-0000-000000000009": {id:"a0000001-0000-0000-0000-000000000009", name:"Mary Lou McDonald", title:"President of Sinn Fein", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000001-0000-0000-0000-000000000010": {id:"a0000001-0000-0000-0000-000000000010", name:"Ivana Bacik", title:"Leader of the Labour Party", party:"Labour", entity_type:"td", active:true},
+  "a0000001-0000-0000-0000-000000000011": {id:"a0000001-0000-0000-0000-000000000011", name:"Holly Cairns", title:"Leader of the Social Democrats", party:"Social Democrats", entity_type:"td", active:true},
+  "a0000001-0000-0000-0000-000000000020": {id:"a0000001-0000-0000-0000-000000000020", name:"Government of Ireland", title:"Executive", entity_type:"institution", active:true},
+  "a0000001-0000-0000-0000-000000000021": {id:"a0000001-0000-0000-0000-000000000021", name:"HSE", title:"Health Service Executive", entity_type:"agency", active:true},
+  "a0000001-0000-0000-0000-000000000022": {id:"a0000001-0000-0000-0000-000000000022", name:"European Commission", title:"EU Institution", entity_type:"institution", active:true},
+  "a0000002-0000-0000-0000-000000000001": {id:"a0000002-0000-0000-0000-000000000001", name:"Micheal Martin", title:"TD for Cork South-Central", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000002": {id:"a0000002-0000-0000-0000-000000000002", name:"Jack Chambers", title:"TD for Dublin West", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000003": {id:"a0000002-0000-0000-0000-000000000003", name:"Jim O'Callaghan", title:"TD for Dublin Bay South", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000004": {id:"a0000002-0000-0000-0000-000000000004", name:"Sean Fleming", title:"TD for Laois", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000005": {id:"a0000002-0000-0000-0000-000000000005", name:"Norma Foley", title:"TD for Kerry", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000006": {id:"a0000002-0000-0000-0000-000000000006", name:"Dara Calleary", title:"TD for Mayo", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000007": {id:"a0000002-0000-0000-0000-000000000007", name:"James Browne", title:"TD for Wexford", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000008": {id:"a0000002-0000-0000-0000-000000000008", name:"Christopher O'Sullivan", title:"TD for Cork South-West", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000009": {id:"a0000002-0000-0000-0000-000000000009", name:"Thomas Byrne", title:"TD for Meath East", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000011": {id:"a0000002-0000-0000-0000-000000000011", name:"Willie O'Dea", title:"TD for Limerick City", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000012": {id:"a0000002-0000-0000-0000-000000000012", name:"John Lahart", title:"TD for Dublin South-West", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000013": {id:"a0000002-0000-0000-0000-000000000013", name:"Cathal Crowe", title:"TD for Clare", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000014": {id:"a0000002-0000-0000-0000-000000000014", name:"Paul McAuliffe", title:"TD for Dublin North-West", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000015": {id:"a0000002-0000-0000-0000-000000000015", name:"Cormac Devlin", title:"TD for Dun Laoghaire", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000016": {id:"a0000002-0000-0000-0000-000000000016", name:"Mary Butler", title:"TD for Waterford", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000018": {id:"a0000002-0000-0000-0000-000000000018", name:"Robert Troy", title:"TD for Longford-Westmeath", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000019": {id:"a0000002-0000-0000-0000-000000000019", name:"Jennifer Murnane O'Connor", title:"TD for Carlow-Kilkenny", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000020": {id:"a0000002-0000-0000-0000-000000000020", name:"Niall Collins", title:"TD for Limerick County", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000021": {id:"a0000002-0000-0000-0000-000000000021", name:"Padraig O'Sullivan", title:"TD for Cork North-Central", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000022": {id:"a0000002-0000-0000-0000-000000000022", name:"James O'Connor", title:"TD for Cork East", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000024": {id:"a0000002-0000-0000-0000-000000000024", name:"Michael Moynihan", title:"TD for Cork North-West", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000026": {id:"a0000002-0000-0000-0000-000000000026", name:"Brendan Smith", title:"TD for Cavan-Monaghan", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000027": {id:"a0000002-0000-0000-0000-000000000027", name:"John McGuinness", title:"TD for Carlow-Kilkenny", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000028": {id:"a0000002-0000-0000-0000-000000000028", name:"Aindrias Moynihan", title:"TD for Cork North-West", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000034": {id:"a0000002-0000-0000-0000-000000000034", name:"Malcolm Byrne", title:"TD for Wicklow-Wexford", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000036": {id:"a0000002-0000-0000-0000-000000000036", name:"Johnny Mythen", title:"TD for Wexford", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000037": {id:"a0000002-0000-0000-0000-000000000037", name:"Erin McGreehan", title:"TD for Louth", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000042": {id:"a0000002-0000-0000-0000-000000000042", name:"Timmy Dooley", title:"TD for Clare", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000050": {id:"a0000002-0000-0000-0000-000000000050", name:"Simon Harris", title:"TD for Wicklow", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000051": {id:"a0000002-0000-0000-0000-000000000051", name:"Helen McEntee", title:"TD for Meath East", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000052": {id:"a0000002-0000-0000-0000-000000000052", name:"Paschal Donohoe", title:"TD for Dublin Central", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000056": {id:"a0000002-0000-0000-0000-000000000056", name:"Colm Brophy", title:"TD for Dublin South-West", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000057": {id:"a0000002-0000-0000-0000-000000000057", name:"Neale Richmond", title:"TD for Dublin Rathdown", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000058": {id:"a0000002-0000-0000-0000-000000000058", name:"Patrick O'Donovan", title:"TD for Limerick County", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000061": {id:"a0000002-0000-0000-0000-000000000061", name:"Emer Higgins", title:"TD for Dublin Mid-West", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000063": {id:"a0000002-0000-0000-0000-000000000063", name:"Alan Dillon", title:"TD for Mayo", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000064": {id:"a0000002-0000-0000-0000-000000000064", name:"Kieran O'Donnell", title:"TD for Limerick City", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000066": {id:"a0000002-0000-0000-0000-000000000066", name:"Martin Heydon", title:"TD for Kildare South", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000067": {id:"a0000002-0000-0000-0000-000000000067", name:"Peter Burke", title:"TD for Longford-Westmeath", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000068": {id:"a0000002-0000-0000-0000-000000000068", name:"Hildegarde Naughton", title:"TD for Galway West", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000074": {id:"a0000002-0000-0000-0000-000000000074", name:"Jennifer Carroll MacNeill", title:"TD for Dun Laoghaire", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000076": {id:"a0000002-0000-0000-0000-000000000076", name:"John Cummins", title:"TD for Waterford", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000080": {id:"a0000002-0000-0000-0000-000000000080", name:"Mary Lou McDonald", title:"TD for Dublin Central", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000081": {id:"a0000002-0000-0000-0000-000000000081", name:"Pearse Doherty", title:"TD for Donegal", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000082": {id:"a0000002-0000-0000-0000-000000000082", name:"Eoin O Broin", title:"TD for Dublin Mid-West", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000083": {id:"a0000002-0000-0000-0000-000000000083", name:"Louise O'Reilly", title:"TD for Dublin Fingal West", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000084": {id:"a0000002-0000-0000-0000-000000000084", name:"David Cullinane", title:"TD for Waterford", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000085": {id:"a0000002-0000-0000-0000-000000000085", name:"Matt Carthy", title:"TD for Cavan-Monaghan", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000086": {id:"a0000002-0000-0000-0000-000000000086", name:"Donnchadh O Laoghaire", title:"TD for Cork South-Central", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000087": {id:"a0000002-0000-0000-0000-000000000087", name:"Martin Kenny", title:"TD for Sligo-Leitrim", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000088": {id:"a0000002-0000-0000-0000-000000000088", name:"Mairead Farrell", title:"TD for Galway West", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000089": {id:"a0000002-0000-0000-0000-000000000089", name:"Pa Daly", title:"TD for Kerry", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000090": {id:"a0000002-0000-0000-0000-000000000090", name:"John Brady", title:"TD for Wicklow", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000091": {id:"a0000002-0000-0000-0000-000000000091", name:"Dessie Ellis", title:"TD for Dublin North-West", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000092": {id:"a0000002-0000-0000-0000-000000000092", name:"Mark Ward", title:"TD for Dublin Mid-West", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000093": {id:"a0000002-0000-0000-0000-000000000093", name:"Aengus O Snodaigh", title:"TD for Dublin South-Central", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000094": {id:"a0000002-0000-0000-0000-000000000094", name:"Darren O'Rourke", title:"TD for Meath East", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000095": {id:"a0000002-0000-0000-0000-000000000095", name:"Reada Cronin", title:"TD for Kildare North", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000096": {id:"a0000002-0000-0000-0000-000000000096", name:"Thomas Gould", title:"TD for Cork North-Central", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000097": {id:"a0000002-0000-0000-0000-000000000097", name:"Claire Kerrane", title:"TD for Roscommon-Galway", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000098": {id:"a0000002-0000-0000-0000-000000000098", name:"Rose Conway-Walsh", title:"TD for Mayo", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000100": {id:"a0000002-0000-0000-0000-000000000100", name:"Sorca Clarke", title:"TD for Longford-Westmeath", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000101": {id:"a0000002-0000-0000-0000-000000000101", name:"Ruairi O Murchu", title:"TD for Louth", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000103": {id:"a0000002-0000-0000-0000-000000000103", name:"Johnny Guirke", title:"TD for Meath West", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000104": {id:"a0000002-0000-0000-0000-000000000104", name:"Padraig Mac Lochlainn", title:"TD for Donegal", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000107": {id:"a0000002-0000-0000-0000-000000000107", name:"Maurice Quinlivan", title:"TD for Limerick City", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000110": {id:"a0000002-0000-0000-0000-000000000110", name:"Ivana Bacik", title:"TD for Dublin Bay South", party:"Labour", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000112": {id:"a0000002-0000-0000-0000-000000000112", name:"Duncan Smith", title:"TD for Dublin Fingal East", party:"Labour", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000114": {id:"a0000002-0000-0000-0000-000000000114", name:"Alan Kelly", title:"TD for Tipperary North", party:"Labour", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000115": {id:"a0000002-0000-0000-0000-000000000115", name:"Ged Nash", title:"TD for Louth", party:"Labour", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000116": {id:"a0000002-0000-0000-0000-000000000116", name:"Marie Sherlock", title:"TD for Dublin Central", party:"Labour", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000118": {id:"a0000002-0000-0000-0000-000000000118", name:"Mark Wall", title:"TD for Kildare South", party:"Labour", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000121": {id:"a0000002-0000-0000-0000-000000000121", name:"Holly Cairns", title:"TD for Cork South-West", party:"Social Democrats", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000122": {id:"a0000002-0000-0000-0000-000000000122", name:"Cian O'Callaghan", title:"TD for Dublin Bay North", party:"Social Democrats", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000123": {id:"a0000002-0000-0000-0000-000000000123", name:"Gary Gannon", title:"TD for Dublin Central", party:"Social Democrats", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000126": {id:"a0000002-0000-0000-0000-000000000126", name:"Jennifer Whitmore", title:"TD for Wicklow", party:"Social Democrats", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000127": {id:"a0000002-0000-0000-0000-000000000127", name:"Sinead Gibney", title:"TD for Dublin Rathdown", party:"Social Democrats", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000128": {id:"a0000002-0000-0000-0000-000000000128", name:"Rory Hearne", title:"TD for Dublin North-West", party:"Social Democrats", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000132": {id:"a0000002-0000-0000-0000-000000000132", name:"Richard Boyd Barrett", title:"TD for Dun Laoghaire", party:"People Before Profit", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000133": {id:"a0000002-0000-0000-0000-000000000133", name:"Paul Murphy", title:"TD for Dublin South-West", party:"People Before Profit", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000137": {id:"a0000002-0000-0000-0000-000000000137", name:"Peadar Toibin", title:"TD for Meath West", party:"Aontu", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000139": {id:"a0000002-0000-0000-0000-000000000139", name:"Michael Collins", title:"TD for Cork South-West", party:"Independent Ireland", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000140": {id:"a0000002-0000-0000-0000-000000000140", name:"Richard O'Donoghue", title:"TD for Limerick County", party:"Independent Ireland", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000144": {id:"a0000002-0000-0000-0000-000000000144", name:"Michael Lowry", title:"TD for Tipperary North", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000145": {id:"a0000002-0000-0000-0000-000000000145", name:"Noel Grealish", title:"TD for Galway West", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000146": {id:"a0000002-0000-0000-0000-000000000146", name:"Mattie McGrath", title:"TD for Tipperary South", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000147": {id:"a0000002-0000-0000-0000-000000000147", name:"Michael Healy-Rae", title:"TD for Kerry", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000148": {id:"a0000002-0000-0000-0000-000000000148", name:"Danny Healy-Rae", title:"TD for Kerry", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000149": {id:"a0000002-0000-0000-0000-000000000149", name:"Catherine Connolly", title:"TD for Galway West", entity_type:"td", active:true},
+  "a0000002-0000-0000-0000-000000000150": {id:"a0000002-0000-0000-0000-000000000150", name:"Verona Murphy", title:"TD for Wexford", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000061": {id:"a0000003-0000-0000-0000-000000000061", name:"Denise Mitchell", title:"TD for Dublin Bay North", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000062": {id:"a0000003-0000-0000-0000-000000000062", name:"Ann Graves", title:"TD for Dublin Fingal East", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000063": {id:"a0000003-0000-0000-0000-000000000063", name:"Maire Devine", title:"TD for Dublin South-Central", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000064": {id:"a0000003-0000-0000-0000-000000000064", name:"Sean Crowe", title:"TD for Dublin South-West", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000065": {id:"a0000003-0000-0000-0000-000000000065", name:"Conor D. McGuinness", title:"TD for Waterford", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000066": {id:"a0000003-0000-0000-0000-000000000066", name:"Fionntan O Suilleabhain", title:"TD for Wicklow-Wexford", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000067": {id:"a0000003-0000-0000-0000-000000000067", name:"Shonagh Ni Raghallaigh", title:"TD for Kildare South", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000068": {id:"a0000003-0000-0000-0000-000000000068", name:"Joanna Byrne", title:"TD for Louth", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000069": {id:"a0000003-0000-0000-0000-000000000069", name:"Cathy Bennett", title:"TD for Cavan-Monaghan", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000070": {id:"a0000003-0000-0000-0000-000000000070", name:"Natasha Drennan Newsome", title:"TD for Carlow-Kilkenny", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000071": {id:"a0000003-0000-0000-0000-000000000071", name:"Donna McGettigan", title:"TD for Clare", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000072": {id:"a0000003-0000-0000-0000-000000000072", name:"Pat Buckley", title:"TD for Cork East", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000073": {id:"a0000003-0000-0000-0000-000000000073", name:"Louis O'Hara", title:"TD for Galway East", party:"Sinn Fein", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000080": {id:"a0000003-0000-0000-0000-000000000080", name:"Robert O'Donoghue", title:"TD for Dublin Fingal West", party:"Labour", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000081": {id:"a0000003-0000-0000-0000-000000000081", name:"Ciaran Ahern", title:"TD for Dublin South-West", party:"Labour", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000082": {id:"a0000003-0000-0000-0000-000000000082", name:"George Lawlor", title:"TD for Wexford", party:"Labour", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000083": {id:"a0000003-0000-0000-0000-000000000083", name:"Conor Sheehan", title:"TD for Limerick City", party:"Labour", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000084": {id:"a0000003-0000-0000-0000-000000000084", name:"Eoghan Kenny", title:"TD for Cork North-Central", party:"Labour", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000090": {id:"a0000003-0000-0000-0000-000000000090", name:"Aidan Farrelly", title:"TD for Kildare North", party:"Social Democrats", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000091": {id:"a0000003-0000-0000-0000-000000000091", name:"Eoin Hayes", title:"TD for Dublin Bay South", party:"Social Democrats", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000092": {id:"a0000003-0000-0000-0000-000000000092", name:"Jen Cummins", title:"TD for Dublin South-Central", party:"Social Democrats", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000093": {id:"a0000003-0000-0000-0000-000000000093", name:"Padraig Rice", title:"TD for Cork South-Central", party:"Social Democrats", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000094": {id:"a0000003-0000-0000-0000-000000000094", name:"Liam Quaide", title:"TD for Cork East", party:"Social Democrats", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000100": {id:"a0000003-0000-0000-0000-000000000100", name:"Ruth Coppinger", title:"TD for Dublin West", party:"People Before Profit", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000101": {id:"a0000003-0000-0000-0000-000000000101", name:"Paul Lawless", title:"TD for Mayo", party:"Aontu", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000102": {id:"a0000003-0000-0000-0000-000000000102", name:"Roderic O'Gorman", title:"TD for Dublin West", party:"Green Party", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000103": {id:"a0000003-0000-0000-0000-000000000103", name:"Charles Ward", title:"TD for Donegal", party:"100% Redress Party", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000104": {id:"a0000003-0000-0000-0000-000000000104", name:"Michael Fitzmaurice", title:"TD for Roscommon-Galway", party:"Independent Ireland", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000105": {id:"a0000003-0000-0000-0000-000000000105", name:"Ken O'Flynn", title:"TD for Cork North-Central", party:"Independent Ireland", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000110": {id:"a0000003-0000-0000-0000-000000000110", name:"Seamus Healy", title:"TD for Tipperary South", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000111": {id:"a0000003-0000-0000-0000-000000000111", name:"Sean Canney", title:"TD for Galway East", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000112": {id:"a0000003-0000-0000-0000-000000000112", name:"Marian Harkin", title:"TD for Sligo-Leitrim", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000113": {id:"a0000003-0000-0000-0000-000000000113", name:"Kevin Boxer Moran", title:"TD for Longford-Westmeath", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000114": {id:"a0000003-0000-0000-0000-000000000114", name:"Carol Nolan", title:"TD for Offaly", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000115": {id:"a0000003-0000-0000-0000-000000000115", name:"Brian Stanley", title:"TD for Laois", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000116": {id:"a0000003-0000-0000-0000-000000000116", name:"Barry Heneghan", title:"TD for Dublin Bay North", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000117": {id:"a0000003-0000-0000-0000-000000000117", name:"Paul Gogarty", title:"TD for Dublin Mid-West", entity_type:"td", active:true},
+  "a0000003-0000-0000-0000-000000000118": {id:"a0000003-0000-0000-0000-000000000118", name:"Gillian Toole", title:"TD for Meath East", entity_type:"td", active:true},
+  "a0000006-0000-0000-0000-000000000100": {id:"a0000006-0000-0000-0000-000000000100", name:"Mike Cubbard", title:"Councillor, Galway City Central", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000101": {id:"a0000006-0000-0000-0000-000000000101", name:"Eddie Hoare", title:"Councillor, Galway City Central", party:"Fine Gael", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000102": {id:"a0000006-0000-0000-0000-000000000102", name:"Frank Fahy", title:"Councillor, Galway City Central", party:"Fine Gael", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000103": {id:"a0000006-0000-0000-0000-000000000103", name:"Josie Forde", title:"Councillor, Galway City Central", party:"Fianna Fail", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000104": {id:"a0000006-0000-0000-0000-000000000104", name:"John McDonagh", title:"Councillor, Galway City Central", party:"Labour", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000105": {id:"a0000006-0000-0000-0000-000000000105", name:"Eibhlin Seoighte", title:"Councillor, Galway City Central", party:"Social Democrats", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000106": {id:"a0000006-0000-0000-0000-000000000106", name:"Alan Cheevers", title:"Councillor, Galway City East", party:"Fianna Fail", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000107": {id:"a0000006-0000-0000-0000-000000000107", name:"Declan McDonnell", title:"Councillor, Galway City East", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000108": {id:"a0000006-0000-0000-0000-000000000108", name:"Terry O'Flaherty", title:"Councillor, Galway City East", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000109": {id:"a0000006-0000-0000-0000-000000000109", name:"Shane Forde", title:"Councillor, Galway City East", party:"Fine Gael", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000110": {id:"a0000006-0000-0000-0000-000000000110", name:"Aisling Burke", title:"Councillor, Galway City East", party:"Sinn Fein", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000111": {id:"a0000006-0000-0000-0000-000000000111", name:"Helen Ogbu", title:"Councillor, Galway City East", party:"Labour", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000112": {id:"a0000006-0000-0000-0000-000000000112", name:"Donal Lyons", title:"Councillor, Galway City West", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000113": {id:"a0000006-0000-0000-0000-000000000113", name:"Clodagh Higgins", title:"Councillor, Galway City West", party:"Fine Gael", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000114": {id:"a0000006-0000-0000-0000-000000000114", name:"Alan Curran", title:"Councillor, Galway City West", party:"Social Democrats", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000115": {id:"a0000006-0000-0000-0000-000000000115", name:"John Connolly", title:"Councillor, Galway City West", party:"Fianna Fail", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000116": {id:"a0000006-0000-0000-0000-000000000116", name:"Peter Keane", title:"Councillor, Galway City West", party:"Fianna Fail", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000117": {id:"a0000006-0000-0000-0000-000000000117", name:"Niall McNelis", title:"Councillor, Galway City West", party:"Labour", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000200": {id:"a0000006-0000-0000-0000-000000000200", name:"Tony Fitzgerald", title:"Councillor, Cork City North West", party:"Fianna Fail", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000201": {id:"a0000006-0000-0000-0000-000000000201", name:"Damian Boylan", title:"Councillor, Cork City North West", party:"Fine Gael", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000202": {id:"a0000006-0000-0000-0000-000000000202", name:"John Sheehan", title:"Councillor, Cork City North West", party:"Fianna Fail", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000203": {id:"a0000006-0000-0000-0000-000000000203", name:"Kenneth Collins", title:"Councillor, Cork City North West", party:"Sinn Fein", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000204": {id:"a0000006-0000-0000-0000-000000000204", name:"Michelle Gould", title:"Councillor, Cork City North West", party:"Sinn Fein", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000205": {id:"a0000006-0000-0000-0000-000000000205", name:"Brian McCarthy", title:"Councillor, Cork City North West", party:"People Before Profit", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000206": {id:"a0000006-0000-0000-0000-000000000206", name:"Ken O'Flynn", title:"Councillor, Cork City North East", party:"Independent Ireland", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000207": {id:"a0000006-0000-0000-0000-000000000207", name:"John Maher", title:"Councillor, Cork City North East", party:"Labour", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000208": {id:"a0000006-0000-0000-0000-000000000208", name:"Joe Kavanagh", title:"Councillor, Cork City North East", party:"Fine Gael", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000209": {id:"a0000006-0000-0000-0000-000000000209", name:"Margaret McDonnell", title:"Councillor, Cork City North East", party:"Fianna Fail", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000210": {id:"a0000006-0000-0000-0000-000000000210", name:"Ted Tynan", title:"Councillor, Cork City North East", party:"Workers Party", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000211": {id:"a0000006-0000-0000-0000-000000000211", name:"Oliver Moran", title:"Councillor, Cork City North East", party:"Green Party", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000212": {id:"a0000006-0000-0000-0000-000000000212", name:"Shane O'Callaghan", title:"Councillor, Cork City South Central", party:"Fine Gael", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000213": {id:"a0000006-0000-0000-0000-000000000213", name:"Sean Martin", title:"Councillor, Cork City South Central", party:"Fianna Fail", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000214": {id:"a0000006-0000-0000-0000-000000000214", name:"Dan Boyle", title:"Councillor, Cork City South Central", party:"Green Party", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000215": {id:"a0000006-0000-0000-0000-000000000215", name:"Padraig Rice", title:"Councillor, Cork City South Central", party:"Social Democrats", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000216": {id:"a0000006-0000-0000-0000-000000000216", name:"Fiona Kerins", title:"Councillor, Cork City South Central", party:"Sinn Fein", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000217": {id:"a0000006-0000-0000-0000-000000000217", name:"Paudie Dineen", title:"Councillor, Cork City South Central", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000218": {id:"a0000006-0000-0000-0000-000000000218", name:"Terry Shannon", title:"Councillor, Cork City South East", party:"Fianna Fail", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000219": {id:"a0000006-0000-0000-0000-000000000219", name:"Kieran McCarthy", title:"Councillor, Cork City South East", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000220": {id:"a0000006-0000-0000-0000-000000000220", name:"Mary Rose Desmond", title:"Councillor, Cork City South East", party:"Fianna Fail", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000221": {id:"a0000006-0000-0000-0000-000000000221", name:"Des Cahill", title:"Councillor, Cork City South East", party:"Fine Gael", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000222": {id:"a0000006-0000-0000-0000-000000000222", name:"Honore Kamegni", title:"Councillor, Cork City South East", party:"Green Party", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000223": {id:"a0000006-0000-0000-0000-000000000223", name:"Peter Horgan", title:"Councillor, Cork City South East", party:"Labour", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000224": {id:"a0000006-0000-0000-0000-000000000224", name:"Fergal Dennehy", title:"Councillor, Cork City South West", party:"Fianna Fail", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000225": {id:"a0000006-0000-0000-0000-000000000225", name:"Colm Kelleher", title:"Councillor, Cork City South West", party:"Fianna Fail", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000226": {id:"a0000006-0000-0000-0000-000000000226", name:"Terry Coleman", title:"Councillor, Cork City South West", party:"Fianna Fail", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000227": {id:"a0000006-0000-0000-0000-000000000227", name:"Garret Kelleher", title:"Councillor, Cork City South West", party:"Fine Gael", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000228": {id:"a0000006-0000-0000-0000-000000000228", name:"Joe Lynch", title:"Councillor, Cork City South West", party:"Sinn Fein", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000229": {id:"a0000006-0000-0000-0000-000000000229", name:"Laura Harmon", title:"Councillor, Cork City South West", party:"Labour", entity_type:"local_councillor", active:true},
+  "a0000006-0000-0000-0000-000000000230": {id:"a0000006-0000-0000-0000-000000000230", name:"Albert Deasy", title:"Councillor, Cork City South West", entity_type:"local_councillor", active:true},
+  "a0000007-0000-0000-0000-000000000001": {id:"a0000007-0000-0000-0000-000000000001", name:"Darragh O'Brien", title:"TD for Dublin Fingal East", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000002": {id:"a0000007-0000-0000-0000-000000000002", name:"Sean O Fearghail", title:"Ceann Comhairle", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000003": {id:"a0000007-0000-0000-0000-000000000003", name:"James Lawless", title:"TD for Kildare North", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000004": {id:"a0000007-0000-0000-0000-000000000004", name:"Naoise O Cearuil", title:"TD for Kildare North", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000005": {id:"a0000007-0000-0000-0000-000000000005", name:"Aisling Dempsey", title:"TD for Meath West", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000006": {id:"a0000007-0000-0000-0000-000000000006", name:"Michael Cahill", title:"TD for Kerry", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000007": {id:"a0000007-0000-0000-0000-000000000007", name:"Seamus McGrath", title:"TD for Cork South-Central", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000008": {id:"a0000007-0000-0000-0000-000000000008", name:"Peter Chap Cleere", title:"TD for Carlow-Kilkenny", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000009": {id:"a0000007-0000-0000-0000-000000000009", name:"Tony McCormack", title:"TD for Offaly", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000010": {id:"a0000007-0000-0000-0000-000000000010", name:"Albert Dolan", title:"TD for Galway East", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000011": {id:"a0000007-0000-0000-0000-000000000011", name:"John Connolly", title:"TD for Galway West", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000012": {id:"a0000007-0000-0000-0000-000000000012", name:"Martin Daly", title:"TD for Roscommon-Galway", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000013": {id:"a0000007-0000-0000-0000-000000000013", name:"Eamon Scanlon", title:"TD for Sligo-Leitrim", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000014": {id:"a0000007-0000-0000-0000-000000000014", name:"Pat The Cope Gallagher", title:"TD for Donegal", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000015": {id:"a0000007-0000-0000-0000-000000000015", name:"Charlie McConalogue", title:"TD for Donegal", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000016": {id:"a0000007-0000-0000-0000-000000000016", name:"Niamh Smyth", title:"TD for Cavan-Monaghan", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000017": {id:"a0000007-0000-0000-0000-000000000017", name:"Ryan O'Meara", title:"TD for Tipperary North", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000018": {id:"a0000007-0000-0000-0000-000000000018", name:"Tom Brabazon", title:"TD for Dublin Bay North", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000019": {id:"a0000007-0000-0000-0000-000000000019", name:"Catherine Ardagh", title:"TD for Dublin South-Central", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000020": {id:"a0000007-0000-0000-0000-000000000020", name:"Shane Moynihan", title:"TD for Dublin Mid-West", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000021": {id:"a0000007-0000-0000-0000-000000000021", name:"Shay Brennan", title:"TD for Dublin Rathdown", party:"Fianna Fail", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000030": {id:"a0000007-0000-0000-0000-000000000030", name:"Maeve O'Connell", title:"TD for Dublin Rathdown", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000031": {id:"a0000007-0000-0000-0000-000000000031", name:"Emer Currie", title:"TD for Dublin West", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000032": {id:"a0000007-0000-0000-0000-000000000032", name:"Naoise O Muiri", title:"TD for Dublin Bay North", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000033": {id:"a0000007-0000-0000-0000-000000000033", name:"Grace Boland", title:"TD for Dublin Fingal West", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000034": {id:"a0000007-0000-0000-0000-000000000034", name:"James Geoghegan", title:"TD for Dublin Bay South", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000035": {id:"a0000007-0000-0000-0000-000000000035", name:"Micheal Carrigy", title:"TD for Longford-Westmeath", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000036": {id:"a0000007-0000-0000-0000-000000000036", name:"Willie Aird", title:"TD for Laois", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000037": {id:"a0000007-0000-0000-0000-000000000037", name:"John Clendennen", title:"TD for Offaly", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000038": {id:"a0000007-0000-0000-0000-000000000038", name:"David Maxwell", title:"TD for Cavan-Monaghan", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000039": {id:"a0000007-0000-0000-0000-000000000039", name:"Paula Butterly", title:"TD for Louth", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000040": {id:"a0000007-0000-0000-0000-000000000040", name:"Edward Timmins", title:"TD for Wicklow", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000041": {id:"a0000007-0000-0000-0000-000000000041", name:"Brian Brennan", title:"TD for Wicklow-Wexford", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000042": {id:"a0000007-0000-0000-0000-000000000042", name:"Catherine Callaghan", title:"TD for Carlow-Kilkenny", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000043": {id:"a0000007-0000-0000-0000-000000000043", name:"Joe Cooney", title:"TD for Clare", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000044": {id:"a0000007-0000-0000-0000-000000000044", name:"Noel McCarthy", title:"TD for Cork East", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000045": {id:"a0000007-0000-0000-0000-000000000045", name:"Colm Burke", title:"TD for Cork North-Central", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000046": {id:"a0000007-0000-0000-0000-000000000046", name:"John Paul O'Shea", title:"TD for Cork North-West", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000047": {id:"a0000007-0000-0000-0000-000000000047", name:"Jerry Buttimer", title:"TD for Cork South-Central", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000048": {id:"a0000007-0000-0000-0000-000000000048", name:"Keira Keogh", title:"TD for Mayo", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000049": {id:"a0000007-0000-0000-0000-000000000049", name:"Pete Roche", title:"TD for Galway East", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000050": {id:"a0000007-0000-0000-0000-000000000050", name:"Frank Feighan", title:"TD for Sligo-Leitrim", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000051": {id:"a0000007-0000-0000-0000-000000000051", name:"Joe Neville", title:"TD for Kildare North", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000052": {id:"a0000007-0000-0000-0000-000000000052", name:"Michael Murphy", title:"TD for Tipperary South", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000053": {id:"a0000007-0000-0000-0000-000000000053", name:"Barry Ward", title:"TD for Dun Laoghaire", party:"Fine Gael", entity_type:"td", active:true},
+  "a0000007-0000-0000-0000-000000000060": {id:"a0000007-0000-0000-0000-000000000060", name:"Paul Donnelly", title:"TD for Dublin West", party:"Sinn Fein", entity_type:"td", active:true},
+  "e-cmc": {id:"e-cmc", name:"Charlie McConalogue", title:"Minister for Agriculture", party:"Fianna Fail", entity_type:"politician", active:true},
+  "e-dob": {id:"e-dob", name:"Darragh O'Brien", title:"Minister for Housing", party:"Fianna Fail", entity_type:"politician", active:true},
+  "e-er": {id:"e-er", name:"Eamon Ryan", title:"Minister for Climate & Transport", party:"Green Party", entity_type:"politician", active:true},
+  "e-gov": {id:"e-gov", name:"Government of Ireland", title:"Executive", entity_type:"institution", active:true},
+  "e-hh": {id:"e-hh", name:"Heather Humphreys", title:"Minister for Social Protection", party:"Fine Gael", entity_type:"politician", active:true},
+  "e-hm": {id:"e-hm", name:"Helen McEntee", title:"Minister for Justice", party:"Fine Gael", entity_type:"politician", active:true},
+  "e-lv": {id:"e-lv", name:"Leo Varadkar", title:"Taoiseach / Tanaiste", party:"Fine Gael", entity_type:"politician", active:true},
+  "e-mm": {id:"e-mm", name:"Micheal Martin", title:"Taoiseach / Tanaiste", party:"Fianna Fail", entity_type:"politician", active:true},
+  "e-nf": {id:"e-nf", name:"Norma Foley", title:"Minister for Education", party:"Fianna Fail", entity_type:"politician", active:true},
+  "e-pd": {id:"e-pd", name:"Paschal Donohoe", title:"Minister for Finance", party:"Fine Gael", entity_type:"politician", active:true},
+  "e-rog": {id:"e-rog", name:"Roderic O'Gorman", title:"Minister for Children & Integration", party:"Green Party", entity_type:"politician", active:true},
+  "e-sc": {id:"e-sc", name:"Slaintecare Committee", title:"Cross-party Health Reform", entity_type:"institution", active:true},
+  "e-sd": {id:"e-sd", name:"Stephen Donnelly", title:"Minister for Health", party:"Fianna Fail", entity_type:"politician", active:true},
+  "e-sh": {id:"e-sh", name:"Simon Harris", title:"Taoiseach / Minister for Higher Ed", party:"Fine Gael", entity_type:"politician", active:true},
 };
 
 const FALLBACK_PROMISES = [
-  { id:'p1', entity_id:E.ER, summary:'Achieve 51% emissions reduction by 2030 (7%/year)', quote:'An average 7% per annum reduction in overall greenhouse gas emissions from 2021 to 2030', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2030-12-31', category:'climate', status:'broken', magnitude:10, tags:['climate','emissions','carbon budget'], outcome_summary:'Ireland blew its first carbon budget, overshooting by ~10 Mt CO2eq. EPA projects only 22% reduction achievable by 2030.', sources:[{label:'EPA – GHG Emissions Projections',url:'https://www.epa.ie/our-services/monitoring--assessment/climate-change/ghg/projections/'},{label:'Carbon budgets breached – EPA',url:'https://www.epa.ie/publications/monitoring--assessment/climate-change/'}] },
-  { id:'p2', entity_id:E.ER, summary:'Introduce Climate Action Bill within 100 days', quote:'Introduce Climate Action Bill establishing a Climate Action Council and net zero by 2050 in law', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2020-10-15', category:'climate', status:'kept', magnitude:8, tags:['climate','legislation'], outcome_summary:'Climate Action and Low Carbon Development (Amendment) Act 2021 enacted. Slightly behind 100-day target but delivered.', sources:[{label:'Climate Act 2021 – Oireachtas',url:'https://www.oireachtas.ie/en/bills/bill/2021/39/'}] },
-  { id:'p3', entity_id:E.ER, summary:'Retrofit 500,000 homes to BER B2 by 2030', quote:'Retrofit 500,000 homes to a BER rating of B2 or equivalent by 2030', context:'Programme for Government / Climate Action Plan 2021', date_made:'2020-06-15', deadline:'2030-12-31', category:'climate', status:'stalled', magnitude:9, tags:['retrofit','housing','climate'], outcome_summary:'Only ~58,000 homes retrofitted (11.5% of target). Would need 75,000/year from 2026-2030.', sources:[{label:'SEAI – National Retrofit Plan',url:'https://www.seai.ie/grants/home-energy-grants/'}] },
-  { id:'p4', entity_id:E.ER, summary:'Ban new petrol/diesel cars after 2030', quote:'Ban registration of new petrol and diesel cars after 2030', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2030-12-31', category:'climate', status:'compromised', magnitude:7, tags:['EVs','transport','climate'], outcome_summary:'At COP26, Ryan signed declaration for 2040 instead. EU rules now target 2035. No domestic 2030 legislation.', sources:[{label:'SIMI – Vehicle registrations',url:'https://www.simi.ie/en/statistics'},{label:'EU 2035 ban – European Council',url:'https://www.consilium.europa.eu/en/press/press-releases/2023/03/28/fit-for-55-council-adopts-regulation-on-co2-emissions-for-new-cars-and-vans/'}] },
-  { id:'p5', entity_id:E.MM, summary:'Increase carbon tax to €100/tonne by 2030', quote:'Increase carbon tax to €100 per tonne by 2030', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2030-12-31', category:'climate', status:'in_progress', magnitude:7, tags:['carbon tax','finance'], outcome_summary:'Rising annually by €7.50 as planned. From €26/tonne (2020) to €56/tonne (2024). On track for €100 by 2030.', sources:[{label:'Revenue – Carbon tax rates',url:'https://www.revenue.ie/en/companies-and-charities/excise-and-licences/energy-taxes/carbon-charge-rates.aspx'}] },
-  { id:'p6', entity_id:E.ER, summary:'20% transport budget for cycling & walking (€360m/yr)', quote:'Allocate 20% of the transport capital budget to cycling and walking infrastructure', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2025-06-27', category:'transport', status:'kept', magnitude:7, tags:['cycling','walking','active travel'], outcome_summary:'Budget 2026 allocated €362.6m. Over 1,000km of active travel routes delivered 2020-2025.', sources:[{label:'NTA – Active Travel Programme',url:'https://www.nationaltransport.ie/planning-and-investment/active-travel/'}] },
-  { id:'p7', entity_id:E.ER, summary:'Maintain 2:1 public transport over roads spending', quote:'Maintain 2:1 spending ratio on public transport over roads', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2025-06-27', category:'transport', status:'compromised', magnitude:6, tags:['transport','roads'], outcome_summary:'2020-2024 broadly maintained. New 2025 government plan: €10.1bn public transport vs €9.7bn roads — nearly 50:50.', sources:[{label:'NDP 2025 review – Gov.ie',url:'https://www.gov.ie/en/publication/774e2-national-development-plan-2021-2030/'}] },
-  { id:'p8', entity_id:E.ER, summary:'End all new oil & gas exploration', quote:'End all new oil and gas exploration in Irish waters', context:'Programme for Government 2020', date_made:'2020-06-15', category:'climate', status:'kept', magnitude:7, tags:['oil','gas','exploration'], outcome_summary:'No new exploration licences issued. Policy enacted. Existing licences like Barryroe remained active.', sources:[{label:'Policy statement on petroleum – Gov.ie',url:'https://www.gov.ie/en/publication/policy-statement-petroleum-exploration/'}] },
-  { id:'p9', entity_id:E.ROG, summary:'End Direct Provision system', quote:'End Direct Provision system for asylum seekers, replacing it with a not-for-profit model', context:'Programme for Government / White Paper 2021', date_made:'2020-06-15', deadline:'2024-12-31', category:'social', status:'broken', magnitude:9, tags:['asylum','direct provision','immigration'], outcome_summary:'System remains fully in place in 2026. Plan quietly shelved citing housing crisis and surge in applications (15,000+/year vs 3,500 assumed).', sources:[{label:'White Paper – Gov.ie',url:'https://www.gov.ie/en/publication/7aad0-a-white-paper-to-end-direct-provision-and-to-establish-a-new-international-protection-support-service/'},{label:'IPAS statistics',url:'https://www.gov.ie/en/collection/international-protection-statistics/'}] },
-  { id:'p10', entity_id:E.HH, summary:'No increase in State pension age to 67', quote:'No increase in the State pension age to 67 in 2021; defer pending Pensions Commission review', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2021-01-01', category:'social', status:'kept', magnitude:8, tags:['pensions','social protection'], outcome_summary:'Pension age increase to 67 successfully deferred. Huge election issue in 2020 after public anger.', sources:[{label:'Pensions Commission Report 2021',url:'https://www.gov.ie/en/publication/6cb6d-report-of-the-commission-on-pensions/'}] },
-  { id:'p11', entity_id:E.HM, summary:'Establish a gambling regulator', quote:'Establish a gambling regulator within the lifetime of the government', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2025-06-27', category:'governance', status:'kept', magnitude:5, tags:['gambling','regulation'], outcome_summary:'GRAI established 5 March 2025. Gambling Regulation Act 2024 passed. Full licensing regime expected mid-2026.', sources:[{label:'Gambling Regulation Act 2024',url:'https://www.oireachtas.ie/en/bills/bill/2022/114/'}] },
-  { id:'p12', entity_id:E.HH, summary:'Introduce auto-enrolment pension scheme', quote:'Introduce auto-enrolment pension savings scheme for workers', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2025-01-01', category:'social', status:'compromised', magnitude:7, tags:['pensions','auto-enrolment'], outcome_summary:'"My Future Fund" launched 1 Jan 2026 — a year late. ~800,000 workers enrolled. Ireland was only OECD country without one.', sources:[{label:'My Future Fund – Gov.ie',url:'https://www.gov.ie/en/campaigns/auto-enrolment/'}] },
-  { id:'p13', entity_id:E.SD, summary:'Free contraception phased rollout', quote:'Introduce free contraception over a phased period starting with women aged 17-25', context:'Programme for Government 2020', date_made:'2020-06-15', category:'health', status:'kept', magnitude:6, tags:['contraception','health','women'], outcome_summary:'Launched Sep 2022 for 17-25. Expanded progressively to age 35. Over 189,000 people accessed in 2023.', sources:[{label:'HSE – Free Contraception Scheme',url:'https://www.hse.ie/eng/about/who/primarycare/freecontraception/'}] },
-  { id:'p14', entity_id:E.NF, summary:'Reduce pupil-teacher ratio to 20:1', quote:'Reduce pupil-teacher ratios from 26:1 to 20:1 by 2025', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2025-12-31', category:'education', status:'compromised', magnitude:6, tags:['education','class sizes'], outcome_summary:'Reduced to 23:1 by 2024 but 20:1 target not achieved.', sources:[{label:'INTO – Class size campaign',url:'https://www.into.ie/campaigns/class-size/'}] },
-  { id:'p15', entity_id:E.SH, summary:'No increase in third-level fees', quote:'No increase in third-level fees', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2025-06-27', category:'education', status:'kept', magnitude:6, tags:['education','fees','students'], outcome_summary:'Student contribution reduced from €3,000 to €2,000. Fees not increased during term.', sources:[{label:'Student contribution – HEA',url:'https://hea.ie/funding-governance-performance/funding/student-finance/'}] },
-  { id:'p16', entity_id:E.PD, summary:'Retain 12.5% corporation tax rate', quote:'Retain the 12.5% corporation tax rate', context:'Programme for Government 2020', date_made:'2020-06-15', category:'economy', status:'compromised', magnitude:8, tags:['tax','corporate','OECD'], outcome_summary:'Ireland joined OECD global minimum tax deal (15% for large companies). 12.5% remains for smaller firms.', sources:[{label:'OECD Pillar Two – Revenue',url:'https://www.revenue.ie/en/companies-and-charities/corporation-tax/pillar-two/'}] },
-  { id:'p17', entity_id:E.DOB, summary:'Deliver 300,000 homes by 2030', quote:'Deliver 300,000 homes by 2030 (average 33,000 per year)', context:'Housing for All 2021', date_made:'2021-09-02', deadline:'2030-12-31', category:'housing', status:'stalled', magnitude:10, tags:['housing','construction'], outcome_summary:'137,000 homes built since 2021. 2024 completions fell 7% to ~30,000. Housing starts collapsed in early 2025.', sources:[{label:'Housing for All – Gov.ie',url:'https://www.gov.ie/en/publication/ef5ec-housing-for-all-a-new-housing-plan-for-ireland/'},{label:'CSO – New Dwelling Completions',url:'https://www.cso.ie/en/releasesandpublications/ep/p-ndc/newdwellingcompletions/'}] },
-  { id:'p18', entity_id:E.DOB, summary:'Deliver 90,000 social housing units by 2030', quote:'Deliver 90,000 social housing units between 2022 and 2030', context:'Housing for All 2021', date_made:'2021-09-02', deadline:'2030-12-31', category:'housing', status:'stalled', magnitude:9, tags:['social housing'], outcome_summary:'Targets consistently missed. Heavy reliance on HAP and private market rather than direct builds.', sources:[{label:'Housing for All – Gov.ie',url:'https://www.gov.ie/en/publication/ef5ec-housing-for-all-a-new-housing-plan-for-ireland/'}] },
-  { id:'p19', entity_id:E.DOB, summary:'4,000 affordable purchase homes per year', quote:'Deliver average 4,000 affordable purchase homes per year', context:'Housing for All 2021', date_made:'2021-09-02', deadline:'2030-12-31', category:'housing', status:'stalled', magnitude:8, tags:['affordable housing'], outcome_summary:'Delivery far below target. Scheme launched but numbers remain a fraction of the 4,000/year goal.', sources:[{label:'LDA – Land Development Agency',url:'https://lda.ie/'}] },
-  { id:'p20', entity_id:E.DOB, summary:'2,000 cost rental homes per year', quote:'Deliver 2,000 cost rental homes per year (18,000 by 2030)', context:'Housing for All 2021', date_made:'2021-09-02', deadline:'2030-12-31', category:'housing', status:'stalled', magnitude:7, tags:['cost rental','housing'], outcome_summary:'New tenure type with rents 25% below market. Initial delivery: hundreds rather than thousands per year.', sources:[{label:'Cost Rental – Housing Agency',url:'https://www.housingagency.ie/housing-information/cost-rental'}] },
-  { id:'p21', entity_id:E.DOB, summary:'Increase Part V requirement to 20%', quote:'Increase Part V social/affordable housing requirement from 10% to 20%', context:'Housing for All 2021', date_made:'2021-09-02', deadline:'2026-01-01', category:'housing', status:'kept', magnitude:6, tags:['Part V','planning'], outcome_summary:'Legislated as promised. Existing permissions at 10% until 2026.', sources:[{label:'Affordable Housing Act 2021',url:'https://www.oireachtas.ie/en/bills/bill/2020/75/'}] },
-  { id:'p22', entity_id:E.DOB, summary:'Deliver 40,000 new homes in 2024', quote:'Deliver 40,000 new homes in 2024', context:'Government statements', date_made:'2021-09-02', deadline:'2024-12-31', category:'housing', status:'broken', magnitude:9, tags:['housing','targets'], outcome_summary:'Actual completions ~30,000, a 7% decrease from 2023. Major election issue.', sources:[{label:'CSO – New Dwelling Completions',url:'https://www.cso.ie/en/releasesandpublications/ep/p-ndc/newdwellingcompletions/'}] },
-  { id:'p23', entity_id:E.SC, summary:'Max 12-week wait for procedures', quote:'No patient should wait longer than 12 weeks for inpatient procedure or 10 weeks for outpatient', context:'Sláintecare Report', date_made:'2017-05-30', deadline:'2027-12-31', category:'health', status:'broken', magnitude:10, tags:['health','waiting lists'], outcome_summary:'547,000 patients waiting as of March 2025. Targets nowhere near being met.', sources:[{label:'NTPF – Waiting list data',url:'https://www.ntpf.ie/home/outpatient.htm'}] },
-  { id:'p24', entity_id:E.SC, summary:'Max 4-hour wait in emergency departments', quote:'No patient should wait longer than 4 hours in an emergency department', context:'Sláintecare Report', date_made:'2017-05-30', deadline:'2027-12-31', category:'health', status:'broken', magnitude:9, tags:['health','trolley crisis','ED'], outcome_summary:'Trolley crisis continues. 11% reduction in daily trolley numbers but ED presentations increased.', sources:[{label:'Trolley watch – INMO',url:'https://www.inmo.ie/trolleywatch'}] },
-  { id:'p25', entity_id:E.SD, summary:'Six surgical hubs & four elective centres', quote:'Establish six surgical hubs and four elective treatment centres', context:'Sláintecare Implementation Plan', date_made:'2021-06-01', deadline:'2027-12-31', category:'health', status:'in_progress', magnitude:7, tags:['health','hospitals'], outcome_summary:'Hubs committed for Cork, Dublin (2), Galway, Limerick, Waterford. One Dublin site operational.', sources:[{label:'Sláintecare implementation – Gov.ie',url:'https://www.gov.ie/en/publication/slaintecare-implementation-strategy/'}] },
-  { id:'p26', entity_id:E.SD, summary:'Six new HSE Health Regions', quote:'Establish six new HSE Health Regions to deliver integrated care', context:'Sláintecare Implementation Plan', date_made:'2021-06-01', deadline:'2024-03-31', category:'health', status:'kept', magnitude:5, tags:['health','HSE reform'], outcome_summary:'Six regions commenced March 2024 with Regional Executive Officers in place. On time.', sources:[{label:'HSE Health Regions',url:'https://www.hse.ie/eng/about/who/healthregions/'}] },
-  { id:'p27', entity_id:E.SC, summary:'Deliver universal healthcare — single-tier system', quote:'Move toward a single-tier system where patients are treated based on need, not ability to pay', context:'Sláintecare Report 2017', date_made:'2017-05-30', deadline:'2027-12-31', category:'health', status:'stalled', magnitude:10, tags:['universal healthcare','two-tier'], outcome_summary:'Ireland remains only EU country without universal primary care coverage. 58% lack free primary care. Two-tier system persists.', sources:[{label:'Sláintecare Report 2017',url:'https://www.gov.ie/en/publication/0d2d60-slaintecare-report/'}] },
-  { id:'p28', entity_id:E.SD, summary:'Free GP care for all children under 8', quote:'Extend free GP care to all children under 8', context:'Programme for Government / Sláintecare', date_made:'2020-06-15', deadline:'2025-12-31', category:'health', status:'kept', magnitude:6, tags:['GP','children','health'], outcome_summary:'Extended to ages 6-7 in 2023. GP visit cards expanded for those earning up to median income.', sources:[{label:'HSE – Free GP care for children',url:'https://www2.hse.ie/services/gp-visit-cards/under-8s/'}] },
-  { id:'p29', entity_id:E.ER, summary:'80% electricity from renewables by 2030', quote:'Generate 80% of electricity from renewables by 2030, including 5GW offshore wind', context:'Climate Action Plan 2021', date_made:'2021-11-04', deadline:'2030-12-31', category:'climate', status:'stalled', magnitude:9, tags:['renewables','offshore wind','solar'], outcome_summary:'Renewables at ~40% in 2024. No offshore wind farm built yet. 5GW target will not be met by 2030.', sources:[{label:'EirGrid – Renewable stats',url:'https://www.eirgridgroup.com/how-the-grid-works/renewables/'}] },
-  { id:'p30', entity_id:E.ER, summary:'Install 600,000 heat pumps by 2030', quote:'Install 600,000 heat pumps in residential buildings by 2030', context:'Climate Action Plan 2021', date_made:'2021-11-04', deadline:'2030-12-31', category:'climate', status:'stalled', magnitude:7, tags:['heat pumps','retrofit'], outcome_summary:'Growing but far below rate needed. Retrofit programme at 11.5% of target.', sources:[{label:'SEAI – Heat Pump Grants',url:'https://www.seai.ie/grants/home-energy-grants/heat-pump-systems/'}] },
-  { id:'p31', entity_id:E.ER, summary:'500,000 extra active travel journeys/day by 2030', quote:'Enable 500,000 extra walking, cycling and public transport journeys per day by 2030', context:'Climate Action Plan 2021', date_made:'2021-11-04', deadline:'2030-12-31', category:'transport', status:'in_progress', magnitude:6, tags:['cycling','walking','public transport'], outcome_summary:'1,000+ km infrastructure delivered. Public bike trips up 23% in 2024. BusConnects underway.', sources:[{label:'NTA Active Travel',url:'https://www.nationaltransport.ie/planning-and-investment/active-travel/'}] },
-  { id:'p32', entity_id:E.ER, summary:'Nearly 1 million EVs on roads by 2030', quote:'Reach nearly 1 million electric vehicles on Irish roads by 2030', context:'Climate Action Plan 2021', date_made:'2021-11-04', deadline:'2030-12-31', category:'climate', status:'stalled', magnitude:7, tags:['EVs','electric vehicles'], outcome_summary:'~18% of new car sales electric in 2023. Far below trajectory for 950,000 by 2030.', sources:[{label:'SIMI – EV registration stats',url:'https://www.simi.ie/en/statistics'}] },
-  { id:'p33', entity_id:E.ER, summary:'Deliver MetroLink from Swords to Charlemont', quote:'Deliver MetroLink — a fully segregated railway from Swords to Charlemont with 16 stations', context:'NDP 2021-2030', date_made:'2021-10-04', category:'infrastructure', status:'stalled', magnitude:10, tags:['MetroLink','Dublin','rail'], outcome_summary:'First proposed 2005 — 20+ years ago. Planning permission Oct 2025. Construction maybe 2028, completion 2034. Cost estimates €7bn-€23bn.', sources:[{label:'MetroLink – TII',url:'https://www.metrolink.ie/'}] },
-  { id:'p34', entity_id:E.ER, summary:'Complete BusConnects corridors by 2030', quote:'Complete BusConnects core bus corridors substantially by 2030', context:'NDP 2021-2030', date_made:'2021-10-04', deadline:'2030-12-31', category:'infrastructure', status:'in_progress', magnitude:7, tags:['BusConnects','Dublin','bus'], outcome_summary:'Four Dublin routes planned for completion by 2030. Ballymun/Finglas construction to commence Q3 2026.', sources:[{label:'BusConnects – NTA',url:'https://busconnects.ie/'}] },
-  { id:'p35', entity_id:E.ER, summary:'Deliver DART+ programme', quote:'Double capacity and treble electrification of Greater Dublin rail network', context:'NDP 2021-2030', date_made:'2021-10-04', deadline:'2030-12-31', category:'infrastructure', status:'stalled', magnitude:8, tags:['DART','rail','Dublin'], outcome_summary:'New trains delayed to Q2 2027. DART+ South West pushed back 4 years. 1984 fleet still in daily service. €2bn programme significantly behind.', sources:[{label:'DART+ – Iarnród Éireann',url:'https://www.irishrail.ie/en-ie/about-us/iarnrod-eireann-projects/dart-expansion-programme'}] },
-  { id:'p36', entity_id:E.SD, summary:'Complete the National Children\'s Hospital', quote:'Complete the National Children\'s Hospital (originally to open 2024)', context:'NDP / Health Capital Programme', date_made:'2017-04-01', deadline:'2024-12-31', category:'infrastructure', status:'broken', magnitude:10, tags:['hospital','children','overrun'], outcome_summary:'Cost: €2.24bn (was €650m — 245% overrun). Failed to meet deadline 15 times. Earliest patients June 2026. Ireland\'s most notorious cost overrun.', sources:[{label:'NCH – PwC review',url:'https://www.gov.ie/en/publication/national-childrens-hospital-review/'}] },
-  { id:'p37', entity_id:E.DOB, summary:'Eradicate homelessness', quote:'Eradicate homelessness through Housing for All pathways', context:'Housing for All 2021', date_made:'2021-09-02', deadline:'2030-12-31', category:'housing', status:'broken', magnitude:10, tags:['homelessness'], outcome_summary:'Record highs: 16,766 in emergency accommodation Oct 2025, including 5,274 children. Up 12% year-on-year.', sources:[{label:'DHLGH – Homelessness data',url:'https://www.gov.ie/en/collection/80ea8-homelessness-data/'},{label:'Focus Ireland – Latest figures',url:'https://www.focusireland.ie/resource-hub/latest-figures-homelessness-ireland/'}] },
-  { id:'p38', entity_id:E.DOB, summary:'Deliver 50,000 additional social homes', quote:'Deliver 50,000 additional social homes over the government term', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2025-06-27', category:'housing', status:'compromised', magnitude:8, tags:['social housing','HAP'], outcome_summary:'Delivery improved but relied on HAP, leasing, acquisitions. Critics argue HAP counting misrepresents actual construction.', sources:[{label:'Housing statistics – Gov.ie',url:'https://www.gov.ie/en/collection/6060e-housing-statistics/'}] },
-  { id:'p39', entity_id:E.ROG, summary:'Reduce childcare costs with fee cap', quote:'Reduce the cost of childcare for parents, with a potential cap on creche fees', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2025-06-27', category:'social', status:'in_progress', magnitude:7, tags:['childcare','costs'], outcome_summary:'NCS subsidies increased. Core funding model introduced. Costs reduced but Ireland still among most expensive OECD.', sources:[{label:'NCS – Childcare subsidy',url:'https://www.ncs.gov.ie/'}] },
-  { id:'p40', entity_id:E.LV, summary:'Raise higher rate tax entry to €50,000', quote:'Raise the higher rate income tax entry point to €50,000', context:'Fine Gael policy commitment', date_made:'2020-06-15', deadline:'2025-06-27', category:'economy', status:'compromised', magnitude:6, tags:['tax','income'], outcome_summary:'Standard rate band increased incrementally but only reached ~€42,000 by 2024.', sources:[{label:'Revenue – Income Tax bands',url:'https://www.revenue.ie/en/personal-tax-credits-reliefs-and-exemptions/tax-relief-charts/index.aspx'}] },
-  { id:'p41', entity_id:E.MM, summary:'Cut Capital Gains Tax to 25%', quote:'Cut Capital Gains Tax to 25%', context:'Fianna Fáil policy commitment', date_made:'2020-06-15', deadline:'2025-06-27', category:'economy', status:'broken', magnitude:6, tags:['CGT','tax'], outcome_summary:'CGT remained at 33% throughout. Never implemented.', sources:[{label:'Revenue – CGT rates',url:'https://www.revenue.ie/en/gains-gifts-and-inheritance/cgt/index.aspx'}] },
-  { id:'p42', entity_id:E.CMC, summary:'Increase organic farmland to 450,000 hectares', quote:'Increase land farmed organically to 450,000 hectares by 2030', context:'Climate Action Plan 2021', date_made:'2021-11-04', deadline:'2030-12-31', category:'climate', status:'stalled', magnitude:6, tags:['agriculture','organic'], outcome_summary:'Growing but only ~120,000 hectares currently. Would need dramatic acceleration to reach 450,000.', sources:[{label:'Organic farming – DAFM',url:'https://www.gov.ie/en/publication/organic-farming/'},{label:'Teagasc – Organic sector',url:'https://www.teagasc.ie/rural-economy/organics/'}] },
-  { id:'p43', entity_id:E.CMC, summary:'Reduce chemical fertiliser to 300,000 tonnes/year', quote:'Reduce agricultural chemical nitrogen fertiliser use to 300,000 tonnes per year', context:'Climate Action Plan 2021', date_made:'2021-11-04', deadline:'2030-12-31', category:'climate', status:'in_progress', magnitude:6, tags:['agriculture','fertiliser','emissions'], outcome_summary:'Fertiliser use declining. Agriculture accounts for ~37% of emissions. EPA calls progress "particularly slow."', sources:[{label:'EPA – Agriculture emissions',url:'https://www.epa.ie/our-services/monitoring--assessment/climate-change/ghg/agriculture/'}] },
-  { id:'p44', entity_id:E.ER, summary:'1,500 electric buses by 2030', quote:'Deliver 1,500 electric buses as part of public transport electrification by 2030', context:'Climate Action Plan 2021', date_made:'2021-11-04', deadline:'2030-12-31', category:'transport', status:'in_progress', magnitude:5, tags:['electric buses','public transport'], outcome_summary:'Electric and hybrid buses being added. First fully electric buses in Dublin. Pace behind target.', sources:[{label:'NTA – Zero Emission Bus fleet',url:'https://www.nationaltransport.ie/news/'}] },
-  { id:'p45', entity_id:E.GOV, summary:'Invest €165 billion in infrastructure 2021-2030', quote:'Invest €165 billion in public infrastructure from 2021 to 2030', context:'NDP 2021-2030', date_made:'2021-10-04', deadline:'2030-12-31', category:'infrastructure', status:'in_progress', magnitude:8, tags:['NDP','infrastructure','spending'], outcome_summary:'2026-2030 allocations increased to €102.4bn (+30%). Spending occurring but delivery plagued by delays and cost overruns.', sources:[{label:'NDP 2021-2030 – Gov.ie',url:'https://www.gov.ie/en/publication/774e2-national-development-plan-2021-2030/'}] },
+  {id:"b0000001-0000-0000-0000-000000000001", entity_id:"a0000001-0000-0000-0000-000000000020", summary:"Deliver an average of 33,000 new homes per year to 2030", quote:"The Government's Housing Plan commits to an average of 33,000 homes per year up to 2030.", context:"Housing for All plan, September 2021", date_made:"2021-09-02", deadline:"2030-12-31", category:"housing", status:"compromised", magnitude:10, tags:["housing-for-all", "construction", "targets"], outcome_summary:"Housing completions consistently fell short. 2022: ~30,000. 2023: ~32,000. Social and affordable targets significantly missed."},
+  {id:"b0000001-0000-0000-0000-000000000002", entity_id:"a0000001-0000-0000-0000-000000000004", summary:"End use of hotels and B&Bs for homeless families", quote:"We will end the use of hotels and B&Bs for homeless families.", context:"Minister O'Brien commitment during Housing for All launch", date_made:"2021-09-02", category:"housing", status:"broken", magnitude:9, tags:["homelessness", "emergency-accommodation"], outcome_summary:"Hotels and B&Bs remain widely used. Homelessness exceeded 14,000 in 2024."},
+  {id:"b0000001-0000-0000-0000-000000000003", entity_id:"a0000001-0000-0000-0000-000000000020", summary:"Deliver affordable purchase homes on State lands", quote:"A new affordable purchase scheme will be put in place on State lands.", context:"Programme for Government 2020 and Housing for All", date_made:"2020-06-15", category:"housing", status:"stalled", magnitude:8, tags:["affordable-housing", "state-lands"], outcome_summary:"Very limited delivery. Land Development Agency slow to begin construction."},
+  {id:"b0000001-0000-0000-0000-000000000004", entity_id:"a0000001-0000-0000-0000-000000000020", summary:"Establish a Commission on Housing within 6 months", quote:"A Commission on Housing will be established within the first 6 months.", context:"Programme for Government, June 2020", date_made:"2020-06-15", deadline:"2020-12-15", category:"housing", status:"kept", magnitude:4, tags:["commission", "housing-policy"], outcome_summary:"Housing Commission established, chaired by John O'Connor."},
+  {id:"b0000001-0000-0000-0000-000000000005", entity_id:"a0000001-0000-0000-0000-000000000020", summary:"Hold a referendum on the right to housing", quote:"Introduce a referendum on housing, as recommended by the Housing Commission.", context:"Programme for Government commitment", date_made:"2020-06-15", category:"housing", status:"kept", magnitude:7, tags:["referendum", "right-to-housing", "constitutional"], outcome_summary:"Housing referendum held 8 March 2024. Defeated by voters due to poor wording."},
+  {id:"b0000001-0000-0000-0000-000000000010", entity_id:"a0000001-0000-0000-0000-000000000006", summary:"Fully implement Slaintecare universal healthcare", quote:"Slaintecare will be fully implemented, delivering universal healthcare based on need.", context:"Programme for Government 2020", date_made:"2020-06-15", deadline:"2030-12-31", category:"health", status:"stalled", magnitude:10, tags:["slaintecare", "universal-healthcare", "reform"], outcome_summary:"Implementation beset by delays. Head Laura Magahy resigned 2021."},
+  {id:"b0000001-0000-0000-0000-000000000011", entity_id:"a0000001-0000-0000-0000-000000000006", summary:"No patient waiting longer than 12 months for treatment", quote:"We will ensure no patient waits longer than 12 months for treatment.", context:"Minister Donnelly commitment", date_made:"2020-06-15", category:"health", status:"broken", magnitude:9, tags:["waiting-lists", "hospitals", "slaintecare"], outcome_summary:"Over 900,000 people on some form of hospital waiting list in 2024."},
+  {id:"b0000001-0000-0000-0000-000000000012", entity_id:"a0000001-0000-0000-0000-000000000020", summary:"Extend free GP care to children aged 6 and 7", quote:"Free GP care will be extended to all children aged 6 and 7.", context:"Programme for Government 2020", date_made:"2020-06-15", category:"health", status:"kept", magnitude:6, tags:["gp-care", "children", "free-healthcare"], outcome_summary:"Extended to ages 6-7 in 2022-2023, then expanded to under-8s."},
+  {id:"b0000001-0000-0000-0000-000000000013", entity_id:"a0000001-0000-0000-0000-000000000020", summary:"Build the new National Maternity Hospital at Elm Park", quote:"The new National Maternity Hospital will be built at Elm Park.", context:"Long-running project to replace Holles Street", date_made:"2020-06-15", category:"health", status:"in_progress", magnitude:8, tags:["national-maternity-hospital", "holles-street", "construction"], outcome_summary:"Construction began after years of ownership controversy. Delayed and costs escalated."},
+  {id:"b0000001-0000-0000-0000-000000000014", entity_id:"a0000001-0000-0000-0000-000000000020", summary:"Reduce emergency department overcrowding", quote:"We will deliver new ED capacity and reduce overcrowding in hospitals.", context:"Programme for Government 2020", date_made:"2020-06-15", category:"health", status:"broken", magnitude:9, tags:["emergency-departments", "overcrowding", "trolley-crisis"], outcome_summary:"ED overcrowding worsened. Record trolley numbers in 2023 and 2024."},
+  {id:"b0000001-0000-0000-0000-000000000020", entity_id:"a0000001-0000-0000-0000-000000000005", summary:"Halve greenhouse gas emissions by 2030", quote:"Ireland will halve its greenhouse gas emissions by 2030 and reach net zero by 2050.", context:"Climate Action Act 2021", date_made:"2021-07-23", deadline:"2030-12-31", category:"climate", status:"compromised", magnitude:10, tags:["emissions", "climate-act", "net-zero", "2030-target"], outcome_summary:"Ireland significantly off track. Agriculture emissions resistant to reduction."},
+  {id:"b0000001-0000-0000-0000-000000000021", entity_id:"a0000001-0000-0000-0000-000000000005", summary:"Retrofit 500,000 homes to B2 energy rating by 2030", quote:"We will retrofit 500,000 homes to a B2 energy rating by 2030.", context:"Climate Action Plan 2021", date_made:"2021-11-04", deadline:"2030-12-31", category:"climate", status:"compromised", magnitude:8, tags:["retrofitting", "energy-efficiency", "homes", "insulation"], outcome_summary:"Retrofit rates well below the 75,000/year needed. Only 35,000-40,000 per year."},
+  {id:"b0000001-0000-0000-0000-000000000022", entity_id:"a0000001-0000-0000-0000-000000000005", summary:"Ban new fossil fuel exploration licences", quote:"No new licences for exploration or extraction of gas or oil will be issued.", context:"Programme for Government 2020", date_made:"2020-06-15", category:"climate", status:"kept", magnitude:7, tags:["fossil-fuels", "gas", "oil", "exploration"], outcome_summary:"No new licences issued. Policy legislated."},
+  {id:"b0000001-0000-0000-0000-000000000023", entity_id:"a0000001-0000-0000-0000-000000000020", summary:"80% renewable electricity by 2030", quote:"Ireland will generate up to 80% of electricity from renewables by 2030.", context:"Climate Action Plan", date_made:"2021-11-04", deadline:"2030-12-31", category:"climate", status:"in_progress", magnitude:9, tags:["renewables", "electricity", "wind", "solar"], outcome_summary:"~40% renewable electricity by 2024. 80% by 2030 very ambitious."},
+  {id:"b0000001-0000-0000-0000-000000000024", entity_id:"a0000001-0000-0000-0000-000000000005", summary:"Ban new petrol/diesel car sales by 2030, reach 1 million EVs", quote:"We will end the sale of new petrol and diesel cars by 2030.", context:"Climate Action Plan", date_made:"2021-11-04", deadline:"2030-12-31", category:"transport", status:"compromised", magnitude:8, tags:["electric-vehicles", "ev", "cars", "emissions"], outcome_summary:"~100,000-120,000 EVs by end 2024, far from 1 million trajectory. EU ban pushed to 2035."},
+  {id:"b0000001-0000-0000-0000-000000000030", entity_id:"a0000001-0000-0000-0000-000000000005", summary:"Deliver MetroLink from Swords to Charlemont", quote:"MetroLink will provide high-frequency metro rail from Swords to Charlemont.", context:"National Development Plan", date_made:"2021-10-04", deadline:"2034-12-31", category:"transport", status:"in_progress", magnitude:9, tags:["metrolink", "metro", "dublin", "rail"], outcome_summary:"Railway order approved 2024. Expected completion early-to-mid 2030s."},
+  {id:"b0000001-0000-0000-0000-000000000031", entity_id:"a0000001-0000-0000-0000-000000000005", summary:"Deliver BusConnects in five cities", quote:"BusConnects will redesign bus networks in Dublin, Cork, Galway, Limerick and Waterford.", context:"National Development Plan and Programme for Government", date_made:"2020-06-15", category:"transport", status:"in_progress", magnitude:7, tags:["busconnects", "bus", "public-transport", "dublin", "cork"], outcome_summary:"Dublin new network launched June 2024. Core Bus Corridors behind schedule."},
+  {id:"b0000001-0000-0000-0000-000000000032", entity_id:"a0000001-0000-0000-0000-000000000020", summary:"Deliver high-speed broadband to every premises via NBP", quote:"The National Broadband Plan will deliver high-speed broadband to every premises.", context:"National Broadband Plan, contract signed 2019", date_made:"2020-06-15", deadline:"2026-12-31", category:"technology", status:"in_progress", magnitude:8, tags:["broadband", "rural", "national-broadband-plan", "NBI"], outcome_summary:"Rollout significantly slower than planned. Costs risen substantially."},
+  {id:"b0000001-0000-0000-0000-000000000033", entity_id:"a0000001-0000-0000-0000-000000000020", summary:"Deliver DART+ expansion programme", quote:"We will progress the DART+ programme.", context:"Programme for Government and NDP", date_made:"2020-06-15", deadline:"2034-12-31", category:"transport", status:"in_progress", magnitude:8, tags:["dart", "dart-plus", "rail", "dublin", "commuter"], outcome_summary:"New trains ordered. DART+ West/South West got railway orders. Full completion early-mid 2030s."},
+  {id:"b0000001-0000-0000-0000-000000000040", entity_id:"a0000001-0000-0000-0000-000000000020", summary:"Introduce a statutory Living Wage", quote:"We will introduce a Living Wage as the minimum floor for wages.", context:"Programme for Government 2020", date_made:"2020-06-15", category:"economy", status:"kept", magnitude:7, tags:["living-wage", "minimum-wage", "workers"], outcome_summary:"Phased introduction enacted. Minimum wage increasing toward living wage by 2026."},
+  {id:"b0000001-0000-0000-0000-000000000041", entity_id:"a0000001-0000-0000-0000-000000000020", summary:"Introduce statutory sick pay", quote:"Statutory Sick Pay will be introduced for all workers.", context:"Programme for Government 2020", date_made:"2020-06-15", category:"economy", status:"kept", magnitude:6, tags:["sick-pay", "workers-rights", "employment"], outcome_summary:"Introduced 2022: 3 days, increasing to 5 (2024), 7 (2025), 10 (2026)."},
+  {id:"b0000001-0000-0000-0000-000000000042", entity_id:"a0000001-0000-0000-0000-000000000020", summary:"Introduce auto-enrolment pension scheme", quote:"Auto-enrolment for pensions will be introduced for all workers.", context:"Programme for Government 2020", date_made:"2020-06-15", deadline:"2024-12-31", category:"economy", status:"compromised", magnitude:7, tags:["pensions", "auto-enrolment", "retirement"], outcome_summary:"Legislation passed but launch delayed multiple times from 2024."},
+  {id:"b0000001-0000-0000-0000-000000000050", entity_id:"a0000001-0000-0000-0000-000000000020", summary:"Reduce childcare costs and implement new funding model", quote:"We will implement a new funding model for quality, accessible and affordable childcare.", context:"Programme for Government 2020", date_made:"2020-06-15", category:"education", status:"kept", magnitude:8, tags:["childcare", "early-years", "affordability"], outcome_summary:"Universal subsidy increased in Budget 2023. Fees reduced up to 25%. Core funding introduced."},
+  {id:"b0000001-0000-0000-0000-000000000051", entity_id:"a0000001-0000-0000-0000-000000000020", summary:"Reduce and eventually abolish college fees", quote:"We will abolish college fees through a phased approach.", context:"Programme for Government 2020", date_made:"2020-06-15", category:"education", status:"compromised", magnitude:6, tags:["college-fees", "third-level", "student-contribution"], outcome_summary:"Student contribution reduced by EUR1,000 (to EUR2,000) but full abolition not achieved."},
+  {id:"b0000001-0000-0000-0000-000000000060", entity_id:"a0000001-0000-0000-0000-000000000020", summary:"End the Direct Provision system", quote:"A White Paper will be published to end Direct Provision and replace it.", context:"Programme for Government 2020", date_made:"2020-06-15", deadline:"2024-12-31", category:"immigration", status:"broken", magnitude:9, tags:["direct-provision", "asylum", "international-protection"], outcome_summary:"System not ended. More applicants from 2022 led to emergency accommodation including tents."},
+  {id:"b0000001-0000-0000-0000-000000000070", entity_id:"a0000001-0000-0000-0000-000000000020", summary:"20% of new public service recruits to be Irish speakers by 2030", quote:"The Official Languages Act will ensure 20% of new recruits are Irish-competent by 2030.", context:"Official Languages (Amendment) Act 2021", date_made:"2021-12-22", deadline:"2030-12-31", category:"gaeilge", status:"in_progress", magnitude:5, tags:["irish-language", "gaeilge", "public-service", "recruitment"], outcome_summary:"Legislation enacted but actual recruitment slow. Many departments struggling."},
+  {id:"b0000001-0000-0000-0000-000000000080", entity_id:"a0000001-0000-0000-0000-000000000003", summary:"Deliver Shared Island initiative for North-South cooperation", quote:"The Shared Island initiative will deepen North-South cooperation.", context:"Programme for Government 2020. EUR500m fund established.", date_made:"2020-06-15", category:"northern-ireland", status:"in_progress", magnitude:6, tags:["shared-island", "north-south", "cross-border"], outcome_summary:"Shared Island unit established. Various cross-border projects funded."},
+  {id:"b0000001-0000-0000-0000-000000000090", entity_id:"a0000001-0000-0000-0000-000000000020", summary:"Reform Garda oversight with new policing legislation", quote:"New governance and oversight framework for An Garda Siochana.", context:"Programme for Government 2020", date_made:"2020-06-15", category:"justice", status:"kept", magnitude:6, tags:["gardai", "policing", "reform", "oversight"], outcome_summary:"Policing, Security and Community Safety Act enacted 2024."},
+  {id:"b0000001-0000-0000-0000-000000000091", entity_id:"a0000001-0000-0000-0000-000000000020", summary:"Increase Garda numbers to 15,000", quote:"An Garda Siochana will be increased to 15,000 members.", context:"Programme for Government commitment", date_made:"2020-06-15", category:"justice", status:"broken", magnitude:6, tags:["gardai", "recruitment", "policing"], outcome_summary:"Numbers fell below 14,000 due to retirements outpacing recruitment."},
+  {id:"b0000001-0000-0000-0000-000000000095", entity_id:"a0000001-0000-0000-0000-000000000020", summary:"Reduce agriculture emissions by 25% by 2030", quote:"The agriculture sector will achieve emissions reductions of 25% by 2030.", context:"Carbon budget sectoral ceiling", date_made:"2022-07-28", deadline:"2030-12-31", category:"agriculture", status:"compromised", magnitude:9, tags:["emissions", "farming", "carbon-budget", "methane"], outcome_summary:"Agriculture emissions essentially flat. Herd reduction politically toxic."},
+  {id:"b0000001-0000-0000-0000-000000000100", entity_id:"a0000001-0000-0000-0000-000000000022", summary:"EU climate neutrality by 2050 with 55% reduction by 2030", quote:"The European Green Deal will make Europe climate-neutral by 2050.", context:"European Green Deal", date_made:"2019-12-11", deadline:"2030-12-31", category:"climate", status:"in_progress", magnitude:10, tags:["european-green-deal", "fit-for-55", "climate-neutrality"], outcome_summary:"Fit for 55 package passed but implementation uneven across member states."},
+  {id:"b0000001-0000-0000-0000-000000000101", entity_id:"a0000001-0000-0000-0000-000000000022", summary:"Restore 20% of EU land and sea areas by 2030", quote:"Nature Restoration Law: restore at least 20% of EU land and sea by 2030.", context:"EU Biodiversity Strategy", date_made:"2022-06-22", deadline:"2030-12-31", category:"climate", status:"in_progress", magnitude:8, tags:["nature-restoration", "biodiversity", "eu-regulation"], outcome_summary:"Law narrowly passed 2024. Several member states pushing back."},
+  {id:"b0000002-0000-0000-0000-000000000072", entity_id:"a0000002-0000-0000-0000-000000000001", summary:"Increase State pension to EUR350/week by 2028", quote:"Increase the State Pension to EUR350 per week by 2028", context:"Fianna Fail Manifesto 2024", date_made:"2024-11-15", deadline:"2028-12-31", category:"social", status:"in_progress", magnitude:7, tags:["pension", "social welfare"], outcome_summary:"In government. State pension currently ~EUR277/week."},
+  {id:"b0000002-0000-0000-0000-000000000073", entity_id:"a0000002-0000-0000-0000-000000000001", summary:"Reduce childcare fees to EUR200/month", quote:"Reduce childcare fees to EUR200 per month over government term", context:"Fianna Fail Manifesto 2024", date_made:"2024-11-15", deadline:"2029-12-31", category:"social", status:"in_progress", magnitude:8, tags:["childcare", "costs", "families"], outcome_summary:"In government. Core funding model expanding."},
+  {id:"b0000002-0000-0000-0000-000000000074", entity_id:"a0000002-0000-0000-0000-000000000001", summary:"Abolish means test for Carers Allowance", quote:"Abolish the means test for Carers Allowance over government lifetime", context:"Fianna Fail Manifesto 2024", date_made:"2024-11-15", deadline:"2029-12-31", category:"social", status:"in_progress", magnitude:7, tags:["carers", "social welfare", "means test"], outcome_summary:"In Programme for Government 2025. Phased approach expected."},
+  {id:"b0000002-0000-0000-0000-000000000083", entity_id:"a0000002-0000-0000-0000-000000000050", summary:"Free GP care for all under-18s", quote:"Extend free GP care to all children and young people under 18", context:"Fine Gael Manifesto 2024", date_made:"2024-11-15", deadline:"2029-12-31", category:"health", status:"in_progress", magnitude:7, tags:["health", "GP", "children"], outcome_summary:"In government. Currently free for under-8s."},
+  {id:"b0000002-0000-0000-0000-000000000084", entity_id:"a0000002-0000-0000-0000-000000000050", summary:"5,000 new hospital beds by 2031", quote:"Deliver 5,000 new inpatient hospital beds by 2031", context:"Fine Gael Manifesto 2024", date_made:"2024-11-15", deadline:"2031-12-31", category:"health", status:"in_progress", magnitude:8, tags:["health", "hospitals", "beds"], outcome_summary:"In government. Bed capacity has been a chronic issue."},
+  {id:"b0000002-0000-0000-0000-000000000085", entity_id:"a0000002-0000-0000-0000-000000000050", summary:"Recruit 6,000 additional Gardai with body cameras", quote:"Recruit 6,000 additional Gardai and roll out body-worn cameras", context:"Fine Gael Manifesto 2024", date_made:"2024-11-15", deadline:"2029-12-31", category:"justice", status:"in_progress", magnitude:7, tags:["Gardai", "policing", "body cameras"], outcome_summary:"In government. Garda numbers declining."},
+  {id:"b0000002-0000-0000-0000-000000000086", entity_id:"a0000002-0000-0000-0000-000000000050", summary:"Increase inheritance tax threshold to EUR500,000", quote:"Increase the inheritance tax-free threshold to EUR500,000", context:"Fine Gael Manifesto 2024", date_made:"2024-11-15", deadline:"2029-12-31", category:"economy", status:"in_progress", magnitude:6, tags:["tax", "inheritance", "CAT"], outcome_summary:"Currently at EUR335,000."},
+  {id:"b0000002-0000-0000-0000-000000000007", entity_id:"a0000002-0000-0000-0000-000000000080", summary:"Abolish college fees", quote:"We will abolish third-level student fees", context:"Sinn Fein Manifesto 2024", date_made:"2024-11-15", category:"education", status:"made", magnitude:7, tags:["education", "fees", "students"], outcome_summary:"Opposition pledge."},
+  {id:"b0000002-0000-0000-0000-000000000008", entity_id:"a0000002-0000-0000-0000-000000000080", summary:"No more carbon tax increases", quote:"We will stop any further increases in the carbon tax", context:"Sinn Fein Manifesto 2024", date_made:"2024-11-15", category:"climate", status:"made", magnitude:6, tags:["carbon tax", "climate", "cost of living"], outcome_summary:"Opposition pledge."},
+  {id:"b0000002-0000-0000-0000-000000000009", entity_id:"a0000002-0000-0000-0000-000000000080", summary:"Seek referendum on Irish unity by 2030", quote:"Seek referendums on Irish unity, North and South, by 2030", context:"Sinn Fein Manifesto 2024", date_made:"2024-11-15", deadline:"2030-12-31", category:"governance", status:"made", magnitude:10, tags:["unity", "referendum", "constitution", "north"], outcome_summary:"Opposition pledge. Would require UK cooperation."},
+  {id:"b0000002-0000-0000-0000-000000000062", entity_id:"a0000001-0000-0000-0000-000000000020", summary:"Extend free GP care to children under 12", quote:"Extend free GP services to children up to at least age 12", context:"Programme for Government 2025", date_made:"2025-01-22", deadline:"2029-12-31", category:"health", status:"in_progress", magnitude:7, tags:["health", "GP", "children"], outcome_summary:"Currently free for under-8s."},
+  {id:"b0000002-0000-0000-0000-000000000063", entity_id:"a0000001-0000-0000-0000-000000000020", summary:"Build 1,600 new prison spaces", quote:"Build almost 1,600 new prison spaces over five years", context:"Programme for Government 2025", date_made:"2025-01-22", deadline:"2029-12-31", category:"justice", status:"in_progress", magnitude:6, tags:["prisons", "justice", "capacity"], outcome_summary:"Prison overcrowding is chronic."},
+  {id:"b0000002-0000-0000-0000-000000000064", entity_id:"a0000001-0000-0000-0000-000000000020", summary:"Process asylum applications within 3 months", quote:"Process asylum applications, appeals, and removal decisions within three months", context:"Programme for Government 2025", date_made:"2025-01-22", deadline:"2026-12-31", category:"governance", status:"in_progress", magnitude:7, tags:["asylum", "immigration", "processing"], outcome_summary:"Currently takes 12-24+ months."},
+  {id:"b0000002-0000-0000-0000-000000000065", entity_id:"a0000001-0000-0000-0000-000000000020", summary:"Create 300,000 new jobs by 2030", quote:"Create 300,000 new jobs by 2030", context:"Programme for Government 2025", date_made:"2025-01-22", deadline:"2030-12-31", category:"economy", status:"in_progress", magnitude:8, tags:["jobs", "employment", "economy"], outcome_summary:"Employment at record 2.7m."},
+  {id:"b0000002-0000-0000-0000-000000000066", entity_id:"a0000001-0000-0000-0000-000000000020", summary:"9GW onshore wind, 8GW solar, 5GW offshore wind by 2030", quote:"Targets of 9GW onshore wind, 8GW solar, and at least 5GW offshore wind by 2030", context:"Programme for Government 2025", date_made:"2025-01-22", deadline:"2030-12-31", category:"climate", status:"in_progress", magnitude:9, tags:["renewables", "wind", "solar", "offshore"], outcome_summary:"Offshore wind at 0GW currently. Extremely ambitious."},
+  // === Legacy promises (33rd Dail era) ===
+{ id:'p1', entity_id:'e-er', summary:'Achieve 51% emissions reduction by 2030 (7%/year)', quote:'An average 7% per annum reduction in overall greenhouse gas emissions from 2021 to 2030', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2030-12-31', category:'climate', status:'broken', magnitude:10, tags:['climate','emissions','carbon budget'], outcome_summary:'Ireland blew its first carbon budget, overshooting by ~10 Mt CO2eq. EPA projects only 22% reduction achievable by 2030.' },
+  { id:'p2', entity_id:'e-er', summary:'Introduce Climate Action Bill within 100 days', quote:'Introduce Climate Action Bill establishing a Climate Action Council and net zero by 2050 in law', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2020-10-15', category:'climate', status:'kept', magnitude:8, tags:['climate','legislation'], outcome_summary:'Climate Action and Low Carbon Development (Amendment) Act 2021 enacted. Slightly behind 100-day target but delivered.' },
+  { id:'p3', entity_id:'e-er', summary:'Retrofit 500,000 homes to BER B2 by 2030', quote:'Retrofit 500,000 homes to a BER rating of B2 or equivalent by 2030', context:'Programme for Government / Climate Action Plan 2021', date_made:'2020-06-15', deadline:'2030-12-31', category:'climate', status:'stalled', magnitude:9, tags:['retrofit','housing','climate'], outcome_summary:'Only ~58,000 homes retrofitted (11.5% of target). Would need 75,000/year from 2026-2030.' },
+  { id:'p4', entity_id:'e-er', summary:'Ban new petrol/diesel cars after 2030', quote:'Ban registration of new petrol and diesel cars after 2030', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2030-12-31', category:'climate', status:'compromised', magnitude:7, tags:['EVs','transport','climate'], outcome_summary:'At COP26, Ryan signed declaration for 2040 instead. EU rules now target 2035. No domestic 2030 legislation.' },
+  { id:'p5', entity_id:'e-mm', summary:'Increase carbon tax to €100/tonne by 2030', quote:'Increase carbon tax to €100 per tonne by 2030', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2030-12-31', category:'climate', status:'in_progress', magnitude:7, tags:['carbon tax','finance'], outcome_summary:'Rising annually by €7.50 as planned. From €26/tonne (2020) to €56/tonne (2024). On track for €100 by 2030.' },
+  { id:'p6', entity_id:'e-er', summary:'20% transport budget for cycling & walking (€360m/yr)', quote:'Allocate 20% of the transport capital budget to cycling and walking infrastructure', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2025-06-27', category:'transport', status:'kept', magnitude:7, tags:['cycling','walking','active travel'], outcome_summary:'Budget 2026 allocated €362.6m. Over 1,000km of active travel routes delivered 2020-2025.' },
+  { id:'p7', entity_id:'e-er', summary:'Maintain 2:1 public transport over roads spending', quote:'Maintain 2:1 spending ratio on public transport over roads', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2025-06-27', category:'transport', status:'compromised', magnitude:6, tags:['transport','roads'], outcome_summary:'2020-2024 broadly maintained. New 2025 government plan: €10.1bn public transport vs €9.7bn roads — nearly 50:50.' },
+  { id:'p8', entity_id:'e-er', summary:'End all new oil & gas exploration', quote:'End all new oil and gas exploration in Irish waters', context:'Programme for Government 2020', date_made:'2020-06-15', category:'climate', status:'kept', magnitude:7, tags:['oil','gas','exploration'], outcome_summary:'No new exploration licences issued. Policy enacted. Existing licences like Barryroe remained active.' },
+  { id:'p9', entity_id:'e-rog', summary:'End Direct Provision system', quote:'End Direct Provision system for asylum seekers, replacing it with a not-for-profit model', context:'Programme for Government / White Paper 2021', date_made:'2020-06-15', deadline:'2024-12-31', category:'social', status:'broken', magnitude:9, tags:['asylum','direct provision','immigration'], outcome_summary:'System remains fully in place in 2026. Plan quietly shelved citing housing crisis and surge in applications (15,000+/year vs 3,500 assumed).' },
+  { id:'p10', entity_id:'e-hh', summary:'No increase in State pension age to 67', quote:'No increase in the State pension age to 67 in 2021; defer pending Pensions Commission review', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2021-01-01', category:'social', status:'kept', magnitude:8, tags:['pensions','social protection'], outcome_summary:'Pension age increase to 67 successfully deferred. Huge election issue in 2020 after public anger.' },
+  { id:'p11', entity_id:'e-hm', summary:'Establish a gambling regulator', quote:'Establish a gambling regulator within the lifetime of the government', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2025-06-27', category:'governance', status:'kept', magnitude:5, tags:['gambling','regulation'], outcome_summary:'GRAI established 5 March 2025. Gambling Regulation Act 2024 passed. Full licensing regime expected mid-2026.' },
+  { id:'p12', entity_id:'e-hh', summary:'Introduce auto-enrolment pension scheme', quote:'Introduce auto-enrolment pension savings scheme for workers', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2025-01-01', category:'social', status:'compromised', magnitude:7, tags:['pensions','auto-enrolment'], outcome_summary:'"My Future Fund" launched 1 Jan 2026 — a year late. ~800,000 workers enrolled. Ireland was only OECD country without one.' },
+  { id:'p13', entity_id:'e-sd', summary:'Free contraception phased rollout', quote:'Introduce free contraception over a phased period starting with women aged 17-25', context:'Programme for Government 2020', date_made:'2020-06-15', category:'health', status:'kept', magnitude:6, tags:['contraception','health','women'], outcome_summary:'Launched Sep 2022 for 17-25. Expanded progressively to age 35. Over 189,000 people accessed in 2023.' },
+  { id:'p14', entity_id:'e-nf', summary:'Reduce pupil-teacher ratio to 20:1', quote:'Reduce pupil-teacher ratios from 26:1 to 20:1 by 2025', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2025-12-31', category:'education', status:'compromised', magnitude:6, tags:['education','class sizes'], outcome_summary:'Reduced to 23:1 by 2024 but 20:1 target not achieved.' },
+  { id:'p15', entity_id:'e-sh', summary:'No increase in third-level fees', quote:'No increase in third-level fees', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2025-06-27', category:'education', status:'kept', magnitude:6, tags:['education','fees','students'], outcome_summary:'Student contribution reduced from €3,000 to €2,000. Fees not increased during term.' },
+  { id:'p16', entity_id:'e-pd', summary:'Retain 12.5% corporation tax rate', quote:'Retain the 12.5% corporation tax rate', context:'Programme for Government 2020', date_made:'2020-06-15', category:'economy', status:'compromised', magnitude:8, tags:['tax','corporate','OECD'], outcome_summary:'Ireland joined OECD global minimum tax deal (15% for large companies). 12.5% remains for smaller firms.' },
+  { id:'p17', entity_id:'e-dob', summary:'Deliver 300,000 homes by 2030', quote:'Deliver 300,000 homes by 2030 (average 33,000 per year)', context:'Housing for All 2021', date_made:'2021-09-02', deadline:'2030-12-31', category:'housing', status:'stalled', magnitude:10, tags:['housing','construction'], outcome_summary:'137,000 homes built since 2021. 2024 completions fell 7% to ~30,000. Housing starts collapsed in early 2025.' },
+  { id:'p18', entity_id:'e-dob', summary:'Deliver 90,000 social housing units by 2030', quote:'Deliver 90,000 social housing units between 2022 and 2030', context:'Housing for All 2021', date_made:'2021-09-02', deadline:'2030-12-31', category:'housing', status:'stalled', magnitude:9, tags:['social housing'], outcome_summary:'Targets consistently missed. Heavy reliance on HAP and private market rather than direct builds.' },
+  { id:'p19', entity_id:'e-dob', summary:'4,000 affordable purchase homes per year', quote:'Deliver average 4,000 affordable purchase homes per year', context:'Housing for All 2021', date_made:'2021-09-02', deadline:'2030-12-31', category:'housing', status:'stalled', magnitude:8, tags:['affordable housing'], outcome_summary:'Delivery far below target. Scheme launched but numbers remain a fraction of the 4,000/year goal.' },
+  { id:'p20', entity_id:'e-dob', summary:'2,000 cost rental homes per year', quote:'Deliver 2,000 cost rental homes per year (18,000 by 2030)', context:'Housing for All 2021', date_made:'2021-09-02', deadline:'2030-12-31', category:'housing', status:'stalled', magnitude:7, tags:['cost rental','housing'], outcome_summary:'New tenure type with rents 25% below market. Initial delivery: hundreds rather than thousands per year.' },
+  { id:'p21', entity_id:'e-dob', summary:'Increase Part V requirement to 20%', quote:'Increase Part V social/affordable housing requirement from 10% to 20%', context:'Housing for All 2021', date_made:'2021-09-02', deadline:'2026-01-01', category:'housing', status:'kept', magnitude:6, tags:['Part V','planning'], outcome_summary:'Legislated as promised. Existing permissions at 10% until 2026.' },
+  { id:'p22', entity_id:'e-dob', summary:'Deliver 40,000 new homes in 2024', quote:'Deliver 40,000 new homes in 2024', context:'Government statements', date_made:'2021-09-02', deadline:'2024-12-31', category:'housing', status:'broken', magnitude:9, tags:['housing','targets'], outcome_summary:'Actual completions ~30,000, a 7% decrease from 2023. Major election issue.' },
+  { id:'p23', entity_id:'e-sc', summary:'Max 12-week wait for procedures', quote:'No patient should wait longer than 12 weeks for inpatient procedure or 10 weeks for outpatient', context:'Sláintecare Report', date_made:'2017-05-30', deadline:'2027-12-31', category:'health', status:'broken', magnitude:10, tags:['health','waiting lists'], outcome_summary:'547,000 patients waiting as of March 2025. Targets nowhere near being met.' },
+  { id:'p24', entity_id:'e-sc', summary:'Max 4-hour wait in emergency departments', quote:'No patient should wait longer than 4 hours in an emergency department', context:'Sláintecare Report', date_made:'2017-05-30', deadline:'2027-12-31', category:'health', status:'broken', magnitude:9, tags:['health','trolley crisis','ED'], outcome_summary:'Trolley crisis continues. 11% reduction in daily trolley numbers but ED presentations increased.' },
+  { id:'p25', entity_id:'e-sd', summary:'Six surgical hubs & four elective centres', quote:'Establish six surgical hubs and four elective treatment centres', context:'Sláintecare Implementation Plan', date_made:'2021-06-01', deadline:'2027-12-31', category:'health', status:'in_progress', magnitude:7, tags:['health','hospitals'], outcome_summary:'Hubs committed for Cork, Dublin (2), Galway, Limerick, Waterford. One Dublin site operational.' },
+  { id:'p26', entity_id:'e-sd', summary:'Six new HSE Health Regions', quote:'Establish six new HSE Health Regions to deliver integrated care', context:'Sláintecare Implementation Plan', date_made:'2021-06-01', deadline:'2024-03-31', category:'health', status:'kept', magnitude:5, tags:['health','HSE reform'], outcome_summary:'Six regions commenced March 2024 with Regional Executive Officers in place. On time.' },
+  { id:'p27', entity_id:'e-sc', summary:'Deliver universal healthcare — single-tier system', quote:'Move toward a single-tier system where patients are treated based on need, not ability to pay', context:'Sláintecare Report 2017', date_made:'2017-05-30', deadline:'2027-12-31', category:'health', status:'stalled', magnitude:10, tags:['universal healthcare','two-tier'], outcome_summary:'Ireland remains only EU country without universal primary care coverage. 58% lack free primary care. Two-tier system persists.' },
+  { id:'p28', entity_id:'e-sd', summary:'Free GP care for all children under 8', quote:'Extend free GP care to all children under 8', context:'Programme for Government / Sláintecare', date_made:'2020-06-15', deadline:'2025-12-31', category:'health', status:'kept', magnitude:6, tags:['GP','children','health'], outcome_summary:'Extended to ages 6-7 in 2023. GP visit cards expanded for those earning up to median income.' },
+  { id:'p29', entity_id:'e-er', summary:'80% electricity from renewables by 2030', quote:'Generate 80% of electricity from renewables by 2030, including 5GW offshore wind', context:'Climate Action Plan 2021', date_made:'2021-11-04', deadline:'2030-12-31', category:'climate', status:'stalled', magnitude:9, tags:['renewables','offshore wind','solar'], outcome_summary:'Renewables at ~40% in 2024. No offshore wind farm built yet. 5GW target will not be met by 2030.' },
+  { id:'p30', entity_id:'e-er', summary:'Install 600,000 heat pumps by 2030', quote:'Install 600,000 heat pumps in residential buildings by 2030', context:'Climate Action Plan 2021', date_made:'2021-11-04', deadline:'2030-12-31', category:'climate', status:'stalled', magnitude:7, tags:['heat pumps','retrofit'], outcome_summary:'Growing but far below rate needed. Retrofit programme at 11.5% of target.' },
+  { id:'p31', entity_id:'e-er', summary:'500,000 extra active travel journeys/day by 2030', quote:'Enable 500,000 extra walking, cycling and public transport journeys per day by 2030', context:'Climate Action Plan 2021', date_made:'2021-11-04', deadline:'2030-12-31', category:'transport', status:'in_progress', magnitude:6, tags:['cycling','walking','public transport'], outcome_summary:'1,000+ km infrastructure delivered. Public bike trips up 23% in 2024. BusConnects underway.' },
+  { id:'p32', entity_id:'e-er', summary:'Nearly 1 million EVs on roads by 2030', quote:'Reach nearly 1 million electric vehicles on Irish roads by 2030', context:'Climate Action Plan 2021', date_made:'2021-11-04', deadline:'2030-12-31', category:'climate', status:'stalled', magnitude:7, tags:['EVs','electric vehicles'], outcome_summary:'~18% of new car sales electric in 2023. Far below trajectory for 950,000 by 2030.' },
+  { id:'p33', entity_id:'e-er', summary:'Deliver MetroLink from Swords to Charlemont', quote:'Deliver MetroLink — a fully segregated railway from Swords to Charlemont with 16 stations', context:'NDP 2021-2030', date_made:'2021-10-04', category:'infrastructure', status:'stalled', magnitude:10, tags:['MetroLink','Dublin','rail'], outcome_summary:'First proposed 2005 — 20+ years ago. Planning permission Oct 2025. Construction maybe 2028, completion 2034. Cost estimates €7bn-€23bn.' },
+  { id:'p34', entity_id:'e-er', summary:'Complete BusConnects corridors by 2030', quote:'Complete BusConnects core bus corridors substantially by 2030', context:'NDP 2021-2030', date_made:'2021-10-04', deadline:'2030-12-31', category:'infrastructure', status:'in_progress', magnitude:7, tags:['BusConnects','Dublin','bus'], outcome_summary:'Four Dublin routes planned for completion by 2030. Ballymun/Finglas construction to commence Q3 2026.' },
+  { id:'p35', entity_id:'e-er', summary:'Deliver DART+ programme', quote:'Double capacity and treble electrification of Greater Dublin rail network', context:'NDP 2021-2030', date_made:'2021-10-04', deadline:'2030-12-31', category:'infrastructure', status:'stalled', magnitude:8, tags:['DART','rail','Dublin'], outcome_summary:'New trains delayed to Q2 2027. DART+ South West pushed back 4 years. 1984 fleet still in daily service. €2bn programme significantly behind.' },
+  { id:'p36', entity_id:'e-sd', summary:'Complete the National Children\'s Hospital', quote:'Complete the National Children\'s Hospital (originally to open 2024)', context:'NDP / Health Capital Programme', date_made:'2017-04-01', deadline:'2024-12-31', category:'infrastructure', status:'broken', magnitude:10, tags:['hospital','children','overrun'], outcome_summary:'Cost: €2.24bn (was €650m — 245% overrun). Failed to meet deadline 15 times. Earliest patients June 2026. Ireland\'s most notorious cost overrun.' },
+  { id:'p37', entity_id:'e-dob', summary:'Eradicate homelessness', quote:'Eradicate homelessness through Housing for All pathways', context:'Housing for All 2021', date_made:'2021-09-02', deadline:'2030-12-31', category:'housing', status:'broken', magnitude:10, tags:['homelessness'], outcome_summary:'Record highs: 16,766 in emergency accommodation Oct 2025, including 5,274 children. Up 12% year-on-year.' },
+  { id:'p38', entity_id:'e-dob', summary:'Deliver 50,000 additional social homes', quote:'Deliver 50,000 additional social homes over the government term', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2025-06-27', category:'housing', status:'compromised', magnitude:8, tags:['social housing','HAP'], outcome_summary:'Delivery improved but relied on HAP, leasing, acquisitions. Critics argue HAP counting misrepresents actual construction.' },
+  { id:'p39', entity_id:'e-rog', summary:'Reduce childcare costs with fee cap', quote:'Reduce the cost of childcare for parents, with a potential cap on creche fees', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2025-06-27', category:'social', status:'in_progress', magnitude:7, tags:['childcare','costs'], outcome_summary:'NCS subsidies increased. Core funding model introduced. Costs reduced but Ireland still among most expensive OECD.' },
+  { id:'p40', entity_id:'e-lv', summary:'Raise higher rate tax entry to €50,000', quote:'Raise the higher rate income tax entry point to €50,000', context:'Fine Gael policy commitment', date_made:'2020-06-15', deadline:'2025-06-27', category:'economy', status:'compromised', magnitude:6, tags:['tax','income'], outcome_summary:'Standard rate band increased incrementally but only reached ~€42,000 by 2024.' },
+  { id:'p41', entity_id:'e-mm', summary:'Cut Capital Gains Tax to 25%', quote:'Cut Capital Gains Tax to 25%', context:'Fianna Fáil policy commitment', date_made:'2020-06-15', deadline:'2025-06-27', category:'economy', status:'broken', magnitude:6, tags:['CGT','tax'], outcome_summary:'CGT remained at 33% throughout. Never implemented.' },
+  { id:'p42', entity_id:'e-cmc', summary:'Increase organic farmland to 450,000 hectares', quote:'Increase land farmed organically to 450,000 hectares by 2030', context:'Climate Action Plan 2021', date_made:'2021-11-04', deadline:'2030-12-31', category:'climate', status:'stalled', magnitude:6, tags:['agriculture','organic'], outcome_summary:'Growing but only ~120,000 hectares currently. Would need dramatic acceleration to reach 450,000.' },
+  { id:'p43', entity_id:'e-cmc', summary:'Reduce chemical fertiliser to 300,000 tonnes/year', quote:'Reduce agricultural chemical nitrogen fertiliser use to 300,000 tonnes per year', context:'Climate Action Plan 2021', date_made:'2021-11-04', deadline:'2030-12-31', category:'climate', status:'in_progress', magnitude:6, tags:['agriculture','fertiliser','emissions'], outcome_summary:'Fertiliser use declining. Agriculture accounts for ~37% of emissions. EPA calls progress "particularly slow."' },
+  { id:'p44', entity_id:'e-er', summary:'1,500 electric buses by 2030', quote:'Deliver 1,500 electric buses as part of public transport electrification by 2030', context:'Climate Action Plan 2021', date_made:'2021-11-04', deadline:'2030-12-31', category:'transport', status:'in_progress', magnitude:5, tags:['electric buses','public transport'], outcome_summary:'Electric and hybrid buses being added. First fully electric buses in Dublin. Pace behind target.' },
+  { id:'p45', entity_id:'e-gov', summary:'Invest €165 billion in infrastructure 2021-2030', quote:'Invest €165 billion in public infrastructure from 2021 to 2030', context:'NDP 2021-2030', date_made:'2021-10-04', deadline:'2030-12-31', category:'infrastructure', status:'in_progress', magnitude:8, tags:['NDP','infrastructure','spending'], outcome_summary:'2026-2030 allocations increased to €102.4bn (+30%). Spending occurring but delivery plagued by delays and cost overruns.' },
 ];
+
 
 // ============================================================
 // DATA LOADING
@@ -626,13 +854,10 @@ const FALLBACK_PROMISES = [
 async function loadData() {
   let entData, promData;
   try {
-    if (!supabaseClient) throw new Error('Supabase client not available');
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Supabase timeout')), 3000));
-    const fetchData = Promise.all([
-      supabaseClient.from('entities').select('*').eq('active', true),
-      supabaseClient.from('promises').select('*').order('magnitude', { ascending: false })
+    const [entRes, promRes] = await Promise.all([
+      supabase.from('entities').select('*').eq('active', true),
+      supabase.from('promises').select('*').order('magnitude', { ascending: false })
     ]);
-    const [entRes, promRes] = await Promise.race([fetchData, timeout]);
 
     if (!entRes.error && !promRes.error && entRes.data.length > 0 && promRes.data.length > 0) {
       entData = entRes.data;
@@ -647,10 +872,6 @@ async function loadData() {
     promData = FALLBACK_PROMISES;
   }
 
-  // Hide loading spinner
-  const loader = document.querySelector('.loading');
-  if (loader) loader.style.display = 'none';
-
   entities = {};
   entData.forEach(e => entities[e.id] = e);
   promises = promData;
@@ -663,8 +884,7 @@ async function loadData() {
 // REALTIME SUBSCRIPTION
 // ============================================================
 function setupRealtime() {
-  if (!supabaseClient) return;
-  supabaseClient.channel('promises-changes')
+  supabase.channel('promises-changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'promises' }, () => {
       loadData();
     })
@@ -683,16 +903,17 @@ function getEntityPromises(entityId) {
 
 function matchesFilters(promise) {
   if (filterStatus !== 'all' && promise.status !== filterStatus) return false;
-  const e = entities[promise.entity_id];
-  if (!e) return false;
-  if (filterType !== 'all' && e.entity_type !== filterType) return false;
   if (filterParty !== 'all') {
+    const e = entities[promise.entity_id];
+    if (!e) return false;
     const pl = getPartyLabel(e);
     if (pl !== filterParty) return false;
   }
   if (searchQuery) {
     const q = searchQuery.toLowerCase();
-    const hay = (promise.summary + ' ' + (promise.outcome_summary||'') + ' ' + (promise.tags||[]).join(' ') + ' ' + e.name + ' ' + (e.party||'') + ' ' + (e.jurisdiction||'')).toLowerCase();
+    const e = entities[promise.entity_id];
+    if (!e) return false;
+    const hay = (promise.summary + ' ' + (promise.outcome_summary||'') + ' ' + (promise.tags||[]).join(' ') + ' ' + e.name + ' ' + (e.party||'')).toLowerCase();
     if (!hay.includes(q)) return false;
   }
   return true;
@@ -710,33 +931,21 @@ function entityFilteredPromises(entityId) {
 // RENDER: FILTERS & STATS
 // ============================================================
 function renderFilters() {
-  // Entity type filter
-  const typeSet = new Set();
-  Object.values(entities).forEach(e => { if (e.entity_type) typeSet.add(e.entity_type); });
-  const typeArr = [...typeSet].sort();
-  document.getElementById('typeFilters').innerHTML =
-    `<button class="filter-pill ${filterType==='all'?'active':''}" onclick="setTypeFilter('all')">All Roles</button>` +
-    typeArr.filter(t => ENTITY_TYPE_LABELS[t]).map(t =>
-      `<button class="filter-pill ${filterType===t?'active':''}" onclick="setTypeFilter('${t}')">${ENTITY_TYPE_LABELS[t]}s</button>`
-    ).join('');
-
-  // Party filter
   const partySet = new Set();
   Object.values(entities).forEach(e => partySet.add(getPartyLabel(e)));
   const partyArr = [...partySet].sort();
   document.getElementById('partyFilters').innerHTML =
-    `<button class="filter-pill ${filterParty==='all'?'active':''}" onclick="setPartyFilter('all')">All Parties</button>` +
+    `<button class="filter-pill ${filterParty==='all'?'active':''}" onclick="setPartyFilter('all')">All</button>` +
     partyArr.map(p => {
-      const color = PARTIES[p] ? PARTIES[p].color : '#718096';
+      const color = PARTIES[p] ? PARTIES[p].color : '#4a5568';
       return `<button class="filter-pill party-pill ${filterParty===p?'active':''}" onclick="setPartyFilter('${p.replace(/'/g,"\\'")}')">
         <span class="party-dot" style="background:${color}"></span>${p}
       </button>`;
     }).join('');
 
-  // Status filter
   document.getElementById('statusFilters').innerHTML =
     `<button class="filter-pill ${filterStatus==='all'?'active':''}" onclick="setStatusFilter('all')">All</button>` +
-    ['kept','broken','compromised','in_progress','stalled','made'].map(k =>
+    ['kept','broken','compromised','in_progress','stalled'].map(k =>
       `<button class="filter-pill ${filterStatus===k?'active':''}" onclick="setStatusFilter('${k}')">${STATUS_LABELS[k]}</button>`
     ).join('');
 }
@@ -780,7 +989,7 @@ function renderStickers() {
         <div class="sticker-avatar">${initials}</div>
         <div class="sticker-identity">
           <div class="sticker-name">${e.name}</div>
-          <div class="sticker-title">${e.title || (ENTITY_TYPE_LABELS[e.entity_type] || e.entity_type)}</div>
+          <div class="sticker-title">${e.title || e.entity_type}</div>
           <div class="sticker-party-badge">${getPartyLabel(e)}</div>
         </div>
       </div>
@@ -807,7 +1016,6 @@ function renderStickers() {
             <div class="promise-row-text">
               <div class="promise-row-summary">${p.summary}</div>
               <div class="promise-row-outcome">${p.outcome_summary || ''}</div>
-              ${renderSources(p)}
             </div>
             <div class="promise-row-mag">${p.magnitude||'?'}/10</div>
           </div>
@@ -855,7 +1063,7 @@ function renderPromiseList() {
       <div class="promise-card-detail">
         <div class="detail-block"><h4>Original Quote</h4><blockquote>${p.quote}</blockquote></div>
         ${p.context ? `<div class="detail-block"><h4>Context</h4><p>${p.context}</p></div>` : ''}
-        ${p.outcome_summary ? `<div class="detail-block"><h4>What Actually Happened</h4><p>${p.outcome_summary}</p>${renderSources(p)}</div>` : ''}
+        ${p.outcome_summary ? `<div class="detail-block"><h4>What Actually Happened</h4><p>${p.outcome_summary}</p></div>` : ''}
         ${p.deadline ? `<div class="detail-block"><h4>Deadline</h4><p>${p.deadline}</p></div>` : ''}
         <div class="detail-block"><h4>Tags</h4><div class="tag-list">${(p.tags||[]).map(t=>`<span class="tag">${t}</span>`).join('')}</div></div>
       </div>
@@ -879,7 +1087,6 @@ function setView(view) {
   render();
 }
 
-function setTypeFilter(t) { filterType = t; render(); }
 function setPartyFilter(p) { filterParty = p; render(); }
 function setStatusFilter(s) { filterStatus = s; render(); }
 
@@ -940,8 +1147,7 @@ async function submitPromise() {
     return;
   }
 
-  if (!supabaseClient) { showToast('Supabase not connected — running in offline mode.', 'error'); btn.disabled = false; btn.textContent = 'Add Promise'; return; }
-  const { error } = await supabaseClient.from('promises').insert(newPromise);
+  const { error } = await supabase.from('promises').insert(newPromise);
 
   if (error) {
     console.error('Insert error:', error);
