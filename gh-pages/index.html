@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Promise Tracker — Irish Government Accountability</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --surface: #131a2b;
+    --surface2: #1c2640;
+    --text: #f1f5f9;
+    --text2: #8a9cc5;
+    --border: #2a3a5c;
+    --accent: #38bdf8;
+    --kept: #16a34a;
+    --broken: #dc2626;
+    --compromised: #ea580c;
+    --in-progress: #2563eb;
+    --stalled: #9333ea;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: linear-gradient(135deg, #0f1b33 0%, #0a0e1a 100%);
+    border-bottom: 2px solid var(--border);
+    padding: 1.25rem 2rem;
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;
+  }
+  header h1 { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.02em; }
+  header p { color: var(--text2); font-size: 0.8rem; }
+  .header-actions { display: flex; gap: 0.5rem; align-items: center; }
+
+  /* ── TABS / VIEWS ── */
+  .view-tabs {
+    display: flex; gap: 0.25rem; background: var(--surface); border-radius: 8px; padding: 3px;
+  }
+  .view-tab {
+    padding: 0.5rem 1rem; border-radius: 6px; border: none;
+    background: transparent; color: var(--text2); font-size: 0.85rem; font-weight: 600;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .view-tab.active { background: var(--accent); color: #000; }
+  .view-tab:hover:not(.active) { color: var(--text); }
+
+  /* ── ADD BUTTON ── */
+  .add-btn {
+    padding: 0.5rem 1rem; border-radius: 8px; border: 2px solid var(--accent);
+    background: rgba(56,189,248,0.1); color: var(--accent); font-size: 0.85rem; font-weight: 700;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .add-btn:hover { background: var(--accent); color: #000; }
+
+  /* ── FILTERS BAR ── */
+  .filters {
+    display: flex; gap: 0.5rem; padding: 0.75rem 2rem; flex-wrap: wrap; align-items: center;
+    border-bottom: 1px solid var(--border); background: var(--surface);
+  }
+  .filter-group { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+  .filter-pill {
+    padding: 0.35rem 0.85rem; border-radius: 999px; border: 2px solid var(--border);
+    background: transparent; color: var(--text2); font-size: 0.75rem; font-weight: 600;
+    cursor: pointer; transition: all 0.2s; white-space: nowrap;
+  }
+  .filter-pill:hover { border-color: var(--text2); color: var(--text); }
+  .filter-pill.active { border-color: var(--accent); color: var(--accent); background: rgba(56,189,248,0.1); }
+
+  .party-pill { position: relative; padding-left: 1.5rem; }
+  .party-pill .party-dot {
+    position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
+    width: 8px; height: 8px; border-radius: 50%;
+  }
+
+  .search-box {
+    flex: 1; min-width: 180px; padding: 0.4rem 0.85rem; border-radius: 999px;
+    border: 2px solid var(--border); background: var(--bg); color: var(--text);
+    font-size: 0.8rem; outline: none; transition: border-color 0.2s;
+  }
+  .search-box:focus { border-color: var(--accent); }
+  .search-box::placeholder { color: var(--text2); }
+  .divider { width: 1px; height: 24px; background: var(--border); margin: 0 0.25rem; }
+
+  /* ── STATS BAR ── */
+  .stats-row {
+    display: flex; gap: 0.5rem; padding: 0.75rem 2rem; flex-wrap: wrap;
+  }
+  .mini-stat {
+    display: flex; align-items: center; gap: 0.35rem;
+    padding: 0.3rem 0.75rem; border-radius: 6px; background: var(--surface);
+    font-size: 0.75rem; color: var(--text2);
+  }
+  .mini-stat .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .mini-stat .num { font-weight: 800; color: var(--text); }
+
+  /* ── LOADING ── */
+  .loading {
+    text-align: center; padding: 4rem; color: var(--text2); font-size: 1rem;
+  }
+  .loading .spinner {
+    display: inline-block; width: 32px; height: 32px; border: 3px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.8s linear infinite; margin-bottom: 1rem;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── STICKER GRID (Match Attax style) ── */
+  .sticker-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.25rem;
+    padding: 1.5rem 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .sticker {
+    border-radius: 16px;
+    overflow: hidden;
+    position: relative;
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+    border: 3px solid;
+  }
+  .sticker:hover { transform: translateY(-4px) scale(1.01); box-shadow: 0 12px 40px rgba(0,0,0,0.5); }
+
+  .sticker-top {
+    padding: 1.25rem;
+    position: relative;
+    background: linear-gradient(135deg, var(--party-color) 0%, var(--party-dark) 100%);
+    min-height: 120px;
+    display: flex; align-items: flex-start; gap: 1rem;
+  }
+
+  .sticker-avatar {
+    width: 72px; height: 72px; border-radius: 12px;
+    background: rgba(255,255,255,0.15); border: 3px solid rgba(255,255,255,0.3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 2rem; font-weight: 900; color: rgba(255,255,255,0.9);
+    flex-shrink: 0; backdrop-filter: blur(4px);
+  }
+
+  .sticker-identity { flex: 1; }
+  .sticker-name {
+    font-size: 1.15rem; font-weight: 800; color: #fff;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3); line-height: 1.2;
+  }
+  .sticker-title {
+    font-size: 0.75rem; color: rgba(255,255,255,0.8); margin-top: 0.15rem;
+  }
+  .sticker-party-badge {
+    display: inline-block; margin-top: 0.4rem;
+    padding: 0.15rem 0.6rem; border-radius: 999px;
+    background: rgba(0,0,0,0.3); color: #fff;
+    font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    backdrop-filter: blur(4px);
+  }
+
+  .sticker-stats {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    background: var(--surface); border-bottom: 1px solid var(--border);
+  }
+  .stat-cell {
+    padding: 0.6rem 0.5rem; text-align: center;
+    border-right: 1px solid var(--border);
+  }
+  .stat-cell:last-child { border-right: none; }
+  .stat-val { font-size: 1.3rem; font-weight: 900; line-height: 1; }
+  .stat-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text2); margin-top: 0.15rem; }
+
+  .score-bar {
+    height: 4px; border-radius: 2px; background: var(--border); margin-top: 0.35rem;
+    overflow: hidden;
+  }
+  .score-bar .fill { height: 100%; border-radius: 2px; transition: width 0.5s; }
+
+  .sticker-promises {
+    background: var(--bg); max-height: 0; overflow: hidden;
+    transition: max-height 0.4s ease;
+  }
+  .sticker.expanded .sticker-promises { max-height: 2000px; }
+
+  .promise-row {
+    display: flex; align-items: flex-start; gap: 0.6rem;
+    padding: 0.65rem 1rem; border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+  .promise-row:hover { background: var(--surface); }
+  .promise-row:last-child { border-bottom: none; }
+
+  .status-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 0.3rem;
+  }
+  .promise-row-text { flex: 1; }
+  .promise-row-summary { font-size: 0.82rem; font-weight: 600; }
+  .promise-row-outcome { font-size: 0.72rem; color: var(--text2); margin-top: 0.15rem; }
+  .promise-row-mag {
+    font-size: 0.65rem; color: var(--text2); font-weight: 700; flex-shrink: 0;
+    background: var(--surface2); padding: 0.15rem 0.45rem; border-radius: 4px;
+    margin-top: 0.2rem;
+  }
+
+  .expand-hint {
+    text-align: center; padding: 0.5rem; font-size: 0.7rem; color: var(--text2);
+    background: var(--surface); letter-spacing: 0.05em;
+    transition: color 0.2s;
+  }
+  .sticker:hover .expand-hint { color: var(--accent); }
+  .sticker.expanded .expand-hint .arrow { transform: rotate(180deg); display: inline-block; }
+
+  /* ── PROMISE LIST VIEW ── */
+  .promise-list-view { display: none; max-width: 1000px; margin: 0 auto; padding: 1.5rem 2rem; }
+  .promise-list-view.active { display: block; }
+  .sticker-grid-wrap { display: block; }
+  .sticker-grid-wrap.hidden { display: none; }
+
+  .promise-card {
+    background: var(--surface); border-radius: 12px; border: 1px solid var(--border);
+    margin-bottom: 0.75rem; overflow: hidden; transition: border-color 0.2s; cursor: pointer;
+  }
+  .promise-card:hover { border-color: var(--accent); }
+  .promise-card.expanded { border-color: var(--accent); }
+
+  .promise-card-header {
+    display: flex; gap: 0.75rem; padding: 1rem; align-items: flex-start;
+  }
+  .promise-card-header .status-badge {
+    flex-shrink: 0; padding: 0.25rem 0.65rem; border-radius: 999px;
+    font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #fff;
+  }
+  .status-badge.kept { background: var(--kept); }
+  .status-badge.broken { background: var(--broken); }
+  .status-badge.compromised { background: var(--compromised); }
+  .status-badge.in_progress { background: var(--in-progress); }
+  .status-badge.stalled { background: var(--stalled); }
+
+  .promise-card-info { flex: 1; }
+  .promise-card-summary { font-size: 0.95rem; font-weight: 600; }
+  .promise-card-meta { font-size: 0.75rem; color: var(--text2); margin-top: 0.2rem; display: flex; gap: 0.75rem; flex-wrap: wrap; }
+  .promise-card-meta .entity-chip {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+  }
+  .promise-card-meta .entity-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+  .promise-card-detail { display: none; padding: 0 1rem 1rem; border-top: 1px solid var(--border); }
+  .promise-card.expanded .promise-card-detail { display: block; padding-top: 0.75rem; }
+  .detail-block { margin-bottom: 0.75rem; }
+  .detail-block h4 { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text2); margin-bottom: 0.2rem; }
+  .detail-block p { font-size: 0.85rem; }
+  .detail-block blockquote { border-left: 3px solid var(--accent); padding-left: 0.75rem; font-style: italic; color: var(--text2); font-size: 0.85rem; }
+  .tag-list { display: flex; gap: 0.25rem; flex-wrap: wrap; }
+  .tag { padding: 0.1rem 0.45rem; border-radius: 4px; background: var(--bg); font-size: 0.65rem; color: var(--text2); border: 1px solid var(--border); }
+
+  .expand-arrow {
+    color: var(--text2); font-size: 0.7rem; transition: transform 0.2s; margin-top: 0.2rem;
+  }
+  .promise-card.expanded .expand-arrow { transform: rotate(180deg); }
+
+  .no-results { text-align: center; padding: 3rem; color: var(--text2); }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    z-index: 200; align-items: center; justify-content: center; padding: 1rem;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: var(--surface); border-radius: 16px; border: 1px solid var(--border);
+    max-width: 600px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 1.5rem;
+  }
+  .modal h2 { font-size: 1.2rem; margin-bottom: 1rem; }
+  .modal label { display: block; font-size: 0.75rem; font-weight: 600; color: var(--text2); margin-bottom: 0.25rem; margin-top: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .modal input, .modal select, .modal textarea {
+    width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px;
+    border: 2px solid var(--border); background: var(--bg); color: var(--text);
+    font-size: 0.85rem; outline: none; font-family: inherit;
+  }
+  .modal input:focus, .modal select:focus, .modal textarea:focus { border-color: var(--accent); }
+  .modal textarea { resize: vertical; min-height: 60px; }
+  .modal select option { background: var(--bg); }
+  .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1.25rem; }
+  .modal-actions button {
+    padding: 0.5rem 1.25rem; border-radius: 8px; border: none; font-weight: 700;
+    font-size: 0.85rem; cursor: pointer; transition: all 0.2s;
+  }
+  .btn-cancel { background: var(--surface2); color: var(--text2); }
+  .btn-cancel:hover { color: var(--text); }
+  .btn-submit { background: var(--accent); color: #000; }
+  .btn-submit:hover { opacity: 0.9; }
+  .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* ── TOAST ── */
+  .toast {
+    position: fixed; bottom: 2rem; right: 2rem; padding: 0.75rem 1.25rem;
+    border-radius: 10px; font-size: 0.85rem; font-weight: 600; z-index: 300;
+    transform: translateY(100px); opacity: 0; transition: all 0.3s;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.success { background: var(--kept); color: #fff; }
+  .toast.error { background: var(--broken); color: #fff; }
+
+  /* ── PARTY COLORS ── */
+  .party-fine-gael    { --party-color: #2b5ea7; --party-dark: #1a3d6e; border-color: #2b5ea7; }
+  .party-fianna-fail  { --party-color: #4a8c3f; --party-dark: #2d5a25; border-color: #4a8c3f; }
+  .party-green-party  { --party-color: #00a651; --party-dark: #006b35; border-color: #00a651; }
+  .party-sinn-fein    { --party-color: #326832; --party-dark: #1e3f1e; border-color: #326832; }
+  .party-labour       { --party-color: #cc0000; --party-dark: #880000; border-color: #cc0000; }
+  .party-social-democrats { --party-color: #752f8a; --party-dark: #4a1d57; border-color: #752f8a; }
+  .party-institution  { --party-color: #4a5568; --party-dark: #2d3748; border-color: #4a5568; }
+  .party-eu           { --party-color: #003399; --party-dark: #001f5c; border-color: #003399; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 700px) {
+    .sticker-grid { grid-template-columns: 1fr; padding: 1rem; gap: 1rem; }
+    header { padding: 1rem; }
+    .filters { padding: 0.5rem 1rem; }
+    .stats-row { padding: 0.5rem 1rem; }
+    .promise-list-view { padding: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Promise Tracker</h1>
+    <p>Irish government commitments — tracked &amp; live from Supabase</p>
+  </div>
+  <div class="header-actions">
+    <div class="view-tabs">
+      <button class="view-tab active" onclick="setView('stickers')">Stickers</button>
+      <button class="view-tab" onclick="setView('promises')">All Promises</button>
+    </div>
+    <button class="add-btn" onclick="openAddModal()">+ Add Promise</button>
+  </div>
+</header>
+
+<div class="filters">
+  <input type="text" class="search-box" id="searchBox" placeholder="Search promises, people, parties...">
+  <div class="divider"></div>
+  <div class="filter-group" id="partyFilters"></div>
+  <div class="divider"></div>
+  <div class="filter-group" id="statusFilters"></div>
+</div>
+
+<div class="stats-row" id="statsRow"></div>
+
+<div class="sticker-grid-wrap" id="stickerView">
+  <div class="sticker-grid" id="stickerGrid">
+    <div class="loading"><div class="spinner"></div><br>Loading from Supabase...</div>
+  </div>
+</div>
+
+<div class="promise-list-view" id="promiseView">
+  <div id="promiseList"></div>
+</div>
+
+<!-- Add Promise Modal -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <h2>Add a Promise</h2>
+    <label>Who made this promise?</label>
+    <select id="formEntity"></select>
+
+    <label>Summary</label>
+    <input type="text" id="formSummary" placeholder="One-line summary of the promise">
+
+    <label>Exact Quote</label>
+    <textarea id="formQuote" placeholder="The verbatim quote"></textarea>
+
+    <label>Context</label>
+    <textarea id="formContext" placeholder="When/where was this promised? Background..."></textarea>
+
+    <label>Date Made</label>
+    <input type="date" id="formDate">
+
+    <label>Deadline (optional)</label>
+    <input type="date" id="formDeadline">
+
+    <label>Category</label>
+    <select id="formCategory">
+      <option value="housing">Housing</option>
+      <option value="health">Health</option>
+      <option value="climate">Climate</option>
+      <option value="transport">Transport</option>
+      <option value="economy">Economy</option>
+      <option value="education">Education</option>
+      <option value="justice">Justice</option>
+      <option value="immigration">Immigration</option>
+      <option value="agriculture">Agriculture</option>
+      <option value="technology">Technology</option>
+      <option value="gaeilge">Irish Language</option>
+    </select>
+
+    <label>Status</label>
+    <select id="formStatus">
+      <option value="made">Made (not yet due)</option>
+      <option value="in_progress">In Progress</option>
+      <option value="kept">Kept</option>
+      <option value="broken">Broken</option>
+      <option value="compromised">Compromised</option>
+      <option value="stalled">Stalled</option>
+    </select>
+
+    <label>Magnitude (1-10)</label>
+    <input type="number" id="formMagnitude" min="1" max="10" value="5">
+
+    <label>Tags (comma-separated)</label>
+    <input type="text" id="formTags" placeholder="housing, reform, targets">
+
+    <label>Outcome Summary (optional)</label>
+    <textarea id="formOutcome" placeholder="What actually happened?"></textarea>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeAddModal()">Cancel</button>
+      <button class="btn-submit" id="formSubmitBtn" onclick="submitPromise()">Add Promise</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// SUPABASE CLIENT
+// ============================================================
+const SUPABASE_URL = 'https://garydfbiditebefefrvu.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdhcnlkZmJpZGl0ZWJlZmVmcnZ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3ODY1MTgsImV4cCI6MjA4OTM2MjUxOH0.z6G5h1YKJqBh9AaqQjCKODuU5Ygf2Bg8qcmwA3Xh04Q';
+
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ============================================================
+// PARTY CONFIG
+// ============================================================
+const PARTIES = {
+  'Fine Gael':          { css: 'party-fine-gael',   color: '#2b5ea7' },
+  'Fianna Fail':        { css: 'party-fianna-fail',  color: '#4a8c3f' },
+  'Green Party':        { css: 'party-green-party',  color: '#00a651' },
+  'Sinn Fein':          { css: 'party-sinn-fein',    color: '#326832' },
+  'Labour':             { css: 'party-labour',       color: '#cc0000' },
+  'Social Democrats':   { css: 'party-social-democrats', color: '#752f8a' },
+};
+
+function getPartyCSS(entity) {
+  if (entity.party && PARTIES[entity.party]) return PARTIES[entity.party].css;
+  if (entity.entity_type === 'institution' || entity.entity_type === 'agency') return 'party-institution';
+  if (entity.title === 'EU Commissioner') return 'party-eu';
+  return 'party-institution';
+}
+
+function getPartyColor(entity) {
+  if (entity.party && PARTIES[entity.party]) return PARTIES[entity.party].color;
+  if (entity.entity_type === 'institution' || entity.entity_type === 'agency') return '#4a5568';
+  return '#4a5568';
+}
+
+function getPartyLabel(entity) {
+  return entity.party || (entity.entity_type === 'institution' || entity.entity_type === 'agency' ? 'Institution' : 'Other');
+}
+
+function getInitials(name) {
+  return name.split(' ').map(w => w[0]).filter(Boolean).join('').substring(0, 3).toUpperCase();
+}
+
+const STATUS_LABELS = {
+  kept:'Kept', broken:'Broken', compromised:'Compromised',
+  in_progress:'In Progress', stalled:'Stalled', made:'Made',
+  pivoted:'Pivoted', expired:'Expired', disputed:'Disputed'
+};
+const STATUS_COLORS = {
+  kept:'#16a34a', broken:'#dc2626', compromised:'#ea580c',
+  in_progress:'#2563eb', stalled:'#9333ea', made:'#64748b',
+  pivoted:'#d97706', expired:'#6b7280', disputed:'#f59e0b'
+};
+
+// ============================================================
+// STATE
+// ============================================================
+let entities = {};
+let promises = [];
+let currentView = 'stickers';
+let filterParty = 'all';
+let filterStatus = 'all';
+let searchQuery = '';
+
+// ============================================================
+// EMBEDDED FALLBACK DATA
+// ============================================================
+const FALLBACK_ENTITIES = {
+  'e-mm': { id:'e-mm', name:'Micheál Martin', title:'Taoiseach / Tánaiste', party:'Fianna Fail', entity_type:'politician', active:true },
+  'e-lv': { id:'e-lv', name:'Leo Varadkar', title:'Taoiseach / Tánaiste', party:'Fine Gael', entity_type:'politician', active:true },
+  'e-er': { id:'e-er', name:'Eamon Ryan', title:'Minister for Climate & Transport', party:'Green Party', entity_type:'politician', active:true },
+  'e-dob':{ id:'e-dob', name:"Darragh O'Brien", title:'Minister for Housing', party:'Fianna Fail', entity_type:'politician', active:true },
+  'e-sd': { id:'e-sd', name:'Stephen Donnelly', title:'Minister for Health', party:'Fianna Fail', entity_type:'politician', active:true },
+  'e-pd': { id:'e-pd', name:'Paschal Donohoe', title:'Minister for Finance', party:'Fine Gael', entity_type:'politician', active:true },
+  'e-rog':{ id:'e-rog', name:"Roderic O'Gorman", title:'Minister for Children & Integration', party:'Green Party', entity_type:'politician', active:true },
+  'e-hh': { id:'e-hh', name:'Heather Humphreys', title:'Minister for Social Protection', party:'Fine Gael', entity_type:'politician', active:true },
+  'e-hm': { id:'e-hm', name:'Helen McEntee', title:'Minister for Justice', party:'Fine Gael', entity_type:'politician', active:true },
+  'e-nf': { id:'e-nf', name:'Norma Foley', title:'Minister for Education', party:'Fianna Fail', entity_type:'politician', active:true },
+  'e-sh': { id:'e-sh', name:'Simon Harris', title:'Taoiseach / Minister for Higher Ed', party:'Fine Gael', entity_type:'politician', active:true },
+  'e-cmc':{ id:'e-cmc', name:'Charlie McConalogue', title:'Minister for Agriculture', party:'Fianna Fail', entity_type:'politician', active:true },
+  'e-sc': { id:'e-sc', name:'Sláintecare Committee', title:'Cross-party Health Reform', entity_type:'institution', active:true },
+  'e-gov':{ id:'e-gov', name:'Government of Ireland', title:'Executive', entity_type:'institution', active:true },
+};
+
+const FALLBACK_PROMISES = [
+  { id:'p1', entity_id:'e-er', summary:'Achieve 51% emissions reduction by 2030 (7%/year)', quote:'An average 7% per annum reduction in overall greenhouse gas emissions from 2021 to 2030', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2030-12-31', category:'climate', status:'broken', magnitude:10, tags:['climate','emissions','carbon budget'], outcome_summary:'Ireland blew its first carbon budget, overshooting by ~10 Mt CO2eq. EPA projects only 22% reduction achievable by 2030.' },
+  { id:'p2', entity_id:'e-er', summary:'Introduce Climate Action Bill within 100 days', quote:'Introduce Climate Action Bill establishing a Climate Action Council and net zero by 2050 in law', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2020-10-15', category:'climate', status:'kept', magnitude:8, tags:['climate','legislation'], outcome_summary:'Climate Action and Low Carbon Development (Amendment) Act 2021 enacted. Slightly behind 100-day target but delivered.' },
+  { id:'p3', entity_id:'e-er', summary:'Retrofit 500,000 homes to BER B2 by 2030', quote:'Retrofit 500,000 homes to a BER rating of B2 or equivalent by 2030', context:'Programme for Government / Climate Action Plan 2021', date_made:'2020-06-15', deadline:'2030-12-31', category:'climate', status:'stalled', magnitude:9, tags:['retrofit','housing','climate'], outcome_summary:'Only ~58,000 homes retrofitted (11.5% of target). Would need 75,000/year from 2026-2030.' },
+  { id:'p4', entity_id:'e-er', summary:'Ban new petrol/diesel cars after 2030', quote:'Ban registration of new petrol and diesel cars after 2030', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2030-12-31', category:'climate', status:'compromised', magnitude:7, tags:['EVs','transport','climate'], outcome_summary:'At COP26, Ryan signed declaration for 2040 instead. EU rules now target 2035. No domestic 2030 legislation.' },
+  { id:'p5', entity_id:'e-mm', summary:'Increase carbon tax to €100/tonne by 2030', quote:'Increase carbon tax to €100 per tonne by 2030', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2030-12-31', category:'climate', status:'in_progress', magnitude:7, tags:['carbon tax','finance'], outcome_summary:'Rising annually by €7.50 as planned. From €26/tonne (2020) to €56/tonne (2024). On track for €100 by 2030.' },
+  { id:'p6', entity_id:'e-er', summary:'20% transport budget for cycling & walking (€360m/yr)', quote:'Allocate 20% of the transport capital budget to cycling and walking infrastructure', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2025-06-27', category:'transport', status:'kept', magnitude:7, tags:['cycling','walking','active travel'], outcome_summary:'Budget 2026 allocated €362.6m. Over 1,000km of active travel routes delivered 2020-2025.' },
+  { id:'p7', entity_id:'e-er', summary:'Maintain 2:1 public transport over roads spending', quote:'Maintain 2:1 spending ratio on public transport over roads', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2025-06-27', category:'transport', status:'compromised', magnitude:6, tags:['transport','roads'], outcome_summary:'2020-2024 broadly maintained. New 2025 government plan: €10.1bn public transport vs €9.7bn roads — nearly 50:50.' },
+  { id:'p8', entity_id:'e-er', summary:'End all new oil & gas exploration', quote:'End all new oil and gas exploration in Irish waters', context:'Programme for Government 2020', date_made:'2020-06-15', category:'climate', status:'kept', magnitude:7, tags:['oil','gas','exploration'], outcome_summary:'No new exploration licences issued. Policy enacted. Existing licences like Barryroe remained active.' },
+  { id:'p9', entity_id:'e-rog', summary:'End Direct Provision system', quote:'End Direct Provision system for asylum seekers, replacing it with a not-for-profit model', context:'Programme for Government / White Paper 2021', date_made:'2020-06-15', deadline:'2024-12-31', category:'social', status:'broken', magnitude:9, tags:['asylum','direct provision','immigration'], outcome_summary:'System remains fully in place in 2026. Plan quietly shelved citing housing crisis and surge in applications (15,000+/year vs 3,500 assumed).' },
+  { id:'p10', entity_id:'e-hh', summary:'No increase in State pension age to 67', quote:'No increase in the State pension age to 67 in 2021; defer pending Pensions Commission review', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2021-01-01', category:'social', status:'kept', magnitude:8, tags:['pensions','social protection'], outcome_summary:'Pension age increase to 67 successfully deferred. Huge election issue in 2020 after public anger.' },
+  { id:'p11', entity_id:'e-hm', summary:'Establish a gambling regulator', quote:'Establish a gambling regulator within the lifetime of the government', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2025-06-27', category:'governance', status:'kept', magnitude:5, tags:['gambling','regulation'], outcome_summary:'GRAI established 5 March 2025. Gambling Regulation Act 2024 passed. Full licensing regime expected mid-2026.' },
+  { id:'p12', entity_id:'e-hh', summary:'Introduce auto-enrolment pension scheme', quote:'Introduce auto-enrolment pension savings scheme for workers', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2025-01-01', category:'social', status:'compromised', magnitude:7, tags:['pensions','auto-enrolment'], outcome_summary:'"My Future Fund" launched 1 Jan 2026 — a year late. ~800,000 workers enrolled. Ireland was only OECD country without one.' },
+  { id:'p13', entity_id:'e-sd', summary:'Free contraception phased rollout', quote:'Introduce free contraception over a phased period starting with women aged 17-25', context:'Programme for Government 2020', date_made:'2020-06-15', category:'health', status:'kept', magnitude:6, tags:['contraception','health','women'], outcome_summary:'Launched Sep 2022 for 17-25. Expanded progressively to age 35. Over 189,000 people accessed in 2023.' },
+  { id:'p14', entity_id:'e-nf', summary:'Reduce pupil-teacher ratio to 20:1', quote:'Reduce pupil-teacher ratios from 26:1 to 20:1 by 2025', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2025-12-31', category:'education', status:'compromised', magnitude:6, tags:['education','class sizes'], outcome_summary:'Reduced to 23:1 by 2024 but 20:1 target not achieved.' },
+  { id:'p15', entity_id:'e-sh', summary:'No increase in third-level fees', quote:'No increase in third-level fees', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2025-06-27', category:'education', status:'kept', magnitude:6, tags:['education','fees','students'], outcome_summary:'Student contribution reduced from €3,000 to €2,000. Fees not increased during term.' },
+  { id:'p16', entity_id:'e-pd', summary:'Retain 12.5% corporation tax rate', quote:'Retain the 12.5% corporation tax rate', context:'Programme for Government 2020', date_made:'2020-06-15', category:'economy', status:'compromised', magnitude:8, tags:['tax','corporate','OECD'], outcome_summary:'Ireland joined OECD global minimum tax deal (15% for large companies). 12.5% remains for smaller firms.' },
+  { id:'p17', entity_id:'e-dob', summary:'Deliver 300,000 homes by 2030', quote:'Deliver 300,000 homes by 2030 (average 33,000 per year)', context:'Housing for All 2021', date_made:'2021-09-02', deadline:'2030-12-31', category:'housing', status:'stalled', magnitude:10, tags:['housing','construction'], outcome_summary:'137,000 homes built since 2021. 2024 completions fell 7% to ~30,000. Housing starts collapsed in early 2025.' },
+  { id:'p18', entity_id:'e-dob', summary:'Deliver 90,000 social housing units by 2030', quote:'Deliver 90,000 social housing units between 2022 and 2030', context:'Housing for All 2021', date_made:'2021-09-02', deadline:'2030-12-31', category:'housing', status:'stalled', magnitude:9, tags:['social housing'], outcome_summary:'Targets consistently missed. Heavy reliance on HAP and private market rather than direct builds.' },
+  { id:'p19', entity_id:'e-dob', summary:'4,000 affordable purchase homes per year', quote:'Deliver average 4,000 affordable purchase homes per year', context:'Housing for All 2021', date_made:'2021-09-02', deadline:'2030-12-31', category:'housing', status:'stalled', magnitude:8, tags:['affordable housing'], outcome_summary:'Delivery far below target. Scheme launched but numbers remain a fraction of the 4,000/year goal.' },
+  { id:'p20', entity_id:'e-dob', summary:'2,000 cost rental homes per year', quote:'Deliver 2,000 cost rental homes per year (18,000 by 2030)', context:'Housing for All 2021', date_made:'2021-09-02', deadline:'2030-12-31', category:'housing', status:'stalled', magnitude:7, tags:['cost rental','housing'], outcome_summary:'New tenure type with rents 25% below market. Initial delivery: hundreds rather than thousands per year.' },
+  { id:'p21', entity_id:'e-dob', summary:'Increase Part V requirement to 20%', quote:'Increase Part V social/affordable housing requirement from 10% to 20%', context:'Housing for All 2021', date_made:'2021-09-02', deadline:'2026-01-01', category:'housing', status:'kept', magnitude:6, tags:['Part V','planning'], outcome_summary:'Legislated as promised. Existing permissions at 10% until 2026.' },
+  { id:'p22', entity_id:'e-dob', summary:'Deliver 40,000 new homes in 2024', quote:'Deliver 40,000 new homes in 2024', context:'Government statements', date_made:'2021-09-02', deadline:'2024-12-31', category:'housing', status:'broken', magnitude:9, tags:['housing','targets'], outcome_summary:'Actual completions ~30,000, a 7% decrease from 2023. Major election issue.' },
+  { id:'p23', entity_id:'e-sc', summary:'Max 12-week wait for procedures', quote:'No patient should wait longer than 12 weeks for inpatient procedure or 10 weeks for outpatient', context:'Sláintecare Report', date_made:'2017-05-30', deadline:'2027-12-31', category:'health', status:'broken', magnitude:10, tags:['health','waiting lists'], outcome_summary:'547,000 patients waiting as of March 2025. Targets nowhere near being met.' },
+  { id:'p24', entity_id:'e-sc', summary:'Max 4-hour wait in emergency departments', quote:'No patient should wait longer than 4 hours in an emergency department', context:'Sláintecare Report', date_made:'2017-05-30', deadline:'2027-12-31', category:'health', status:'broken', magnitude:9, tags:['health','trolley crisis','ED'], outcome_summary:'Trolley crisis continues. 11% reduction in daily trolley numbers but ED presentations increased.' },
+  { id:'p25', entity_id:'e-sd', summary:'Six surgical hubs & four elective centres', quote:'Establish six surgical hubs and four elective treatment centres', context:'Sláintecare Implementation Plan', date_made:'2021-06-01', deadline:'2027-12-31', category:'health', status:'in_progress', magnitude:7, tags:['health','hospitals'], outcome_summary:'Hubs committed for Cork, Dublin (2), Galway, Limerick, Waterford. One Dublin site operational.' },
+  { id:'p26', entity_id:'e-sd', summary:'Six new HSE Health Regions', quote:'Establish six new HSE Health Regions to deliver integrated care', context:'Sláintecare Implementation Plan', date_made:'2021-06-01', deadline:'2024-03-31', category:'health', status:'kept', magnitude:5, tags:['health','HSE reform'], outcome_summary:'Six regions commenced March 2024 with Regional Executive Officers in place. On time.' },
+  { id:'p27', entity_id:'e-sc', summary:'Deliver universal healthcare — single-tier system', quote:'Move toward a single-tier system where patients are treated based on need, not ability to pay', context:'Sláintecare Report 2017', date_made:'2017-05-30', deadline:'2027-12-31', category:'health', status:'stalled', magnitude:10, tags:['universal healthcare','two-tier'], outcome_summary:'Ireland remains only EU country without universal primary care coverage. 58% lack free primary care. Two-tier system persists.' },
+  { id:'p28', entity_id:'e-sd', summary:'Free GP care for all children under 8', quote:'Extend free GP care to all children under 8', context:'Programme for Government / Sláintecare', date_made:'2020-06-15', deadline:'2025-12-31', category:'health', status:'kept', magnitude:6, tags:['GP','children','health'], outcome_summary:'Extended to ages 6-7 in 2023. GP visit cards expanded for those earning up to median income.' },
+  { id:'p29', entity_id:'e-er', summary:'80% electricity from renewables by 2030', quote:'Generate 80% of electricity from renewables by 2030, including 5GW offshore wind', context:'Climate Action Plan 2021', date_made:'2021-11-04', deadline:'2030-12-31', category:'climate', status:'stalled', magnitude:9, tags:['renewables','offshore wind','solar'], outcome_summary:'Renewables at ~40% in 2024. No offshore wind farm built yet. 5GW target will not be met by 2030.' },
+  { id:'p30', entity_id:'e-er', summary:'Install 600,000 heat pumps by 2030', quote:'Install 600,000 heat pumps in residential buildings by 2030', context:'Climate Action Plan 2021', date_made:'2021-11-04', deadline:'2030-12-31', category:'climate', status:'stalled', magnitude:7, tags:['heat pumps','retrofit'], outcome_summary:'Growing but far below rate needed. Retrofit programme at 11.5% of target.' },
+  { id:'p31', entity_id:'e-er', summary:'500,000 extra active travel journeys/day by 2030', quote:'Enable 500,000 extra walking, cycling and public transport journeys per day by 2030', context:'Climate Action Plan 2021', date_made:'2021-11-04', deadline:'2030-12-31', category:'transport', status:'in_progress', magnitude:6, tags:['cycling','walking','public transport'], outcome_summary:'1,000+ km infrastructure delivered. Public bike trips up 23% in 2024. BusConnects underway.' },
+  { id:'p32', entity_id:'e-er', summary:'Nearly 1 million EVs on roads by 2030', quote:'Reach nearly 1 million electric vehicles on Irish roads by 2030', context:'Climate Action Plan 2021', date_made:'2021-11-04', deadline:'2030-12-31', category:'climate', status:'stalled', magnitude:7, tags:['EVs','electric vehicles'], outcome_summary:'~18% of new car sales electric in 2023. Far below trajectory for 950,000 by 2030.' },
+  { id:'p33', entity_id:'e-er', summary:'Deliver MetroLink from Swords to Charlemont', quote:'Deliver MetroLink — a fully segregated railway from Swords to Charlemont with 16 stations', context:'NDP 2021-2030', date_made:'2021-10-04', category:'infrastructure', status:'stalled', magnitude:10, tags:['MetroLink','Dublin','rail'], outcome_summary:'First proposed 2005 — 20+ years ago. Planning permission Oct 2025. Construction maybe 2028, completion 2034. Cost estimates €7bn-€23bn.' },
+  { id:'p34', entity_id:'e-er', summary:'Complete BusConnects corridors by 2030', quote:'Complete BusConnects core bus corridors substantially by 2030', context:'NDP 2021-2030', date_made:'2021-10-04', deadline:'2030-12-31', category:'infrastructure', status:'in_progress', magnitude:7, tags:['BusConnects','Dublin','bus'], outcome_summary:'Four Dublin routes planned for completion by 2030. Ballymun/Finglas construction to commence Q3 2026.' },
+  { id:'p35', entity_id:'e-er', summary:'Deliver DART+ programme', quote:'Double capacity and treble electrification of Greater Dublin rail network', context:'NDP 2021-2030', date_made:'2021-10-04', deadline:'2030-12-31', category:'infrastructure', status:'stalled', magnitude:8, tags:['DART','rail','Dublin'], outcome_summary:'New trains delayed to Q2 2027. DART+ South West pushed back 4 years. 1984 fleet still in daily service. €2bn programme significantly behind.' },
+  { id:'p36', entity_id:'e-sd', summary:'Complete the National Children\'s Hospital', quote:'Complete the National Children\'s Hospital (originally to open 2024)', context:'NDP / Health Capital Programme', date_made:'2017-04-01', deadline:'2024-12-31', category:'infrastructure', status:'broken', magnitude:10, tags:['hospital','children','overrun'], outcome_summary:'Cost: €2.24bn (was €650m — 245% overrun). Failed to meet deadline 15 times. Earliest patients June 2026. Ireland\'s most notorious cost overrun.' },
+  { id:'p37', entity_id:'e-dob', summary:'Eradicate homelessness', quote:'Eradicate homelessness through Housing for All pathways', context:'Housing for All 2021', date_made:'2021-09-02', deadline:'2030-12-31', category:'housing', status:'broken', magnitude:10, tags:['homelessness'], outcome_summary:'Record highs: 16,766 in emergency accommodation Oct 2025, including 5,274 children. Up 12% year-on-year.' },
+  { id:'p38', entity_id:'e-dob', summary:'Deliver 50,000 additional social homes', quote:'Deliver 50,000 additional social homes over the government term', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2025-06-27', category:'housing', status:'compromised', magnitude:8, tags:['social housing','HAP'], outcome_summary:'Delivery improved but relied on HAP, leasing, acquisitions. Critics argue HAP counting misrepresents actual construction.' },
+  { id:'p39', entity_id:'e-rog', summary:'Reduce childcare costs with fee cap', quote:'Reduce the cost of childcare for parents, with a potential cap on creche fees', context:'Programme for Government 2020', date_made:'2020-06-15', deadline:'2025-06-27', category:'social', status:'in_progress', magnitude:7, tags:['childcare','costs'], outcome_summary:'NCS subsidies increased. Core funding model introduced. Costs reduced but Ireland still among most expensive OECD.' },
+  { id:'p40', entity_id:'e-lv', summary:'Raise higher rate tax entry to €50,000', quote:'Raise the higher rate income tax entry point to €50,000', context:'Fine Gael policy commitment', date_made:'2020-06-15', deadline:'2025-06-27', category:'economy', status:'compromised', magnitude:6, tags:['tax','income'], outcome_summary:'Standard rate band increased incrementally but only reached ~€42,000 by 2024.' },
+  { id:'p41', entity_id:'e-mm', summary:'Cut Capital Gains Tax to 25%', quote:'Cut Capital Gains Tax to 25%', context:'Fianna Fáil policy commitment', date_made:'2020-06-15', deadline:'2025-06-27', category:'economy', status:'broken', magnitude:6, tags:['CGT','tax'], outcome_summary:'CGT remained at 33% throughout. Never implemented.' },
+  { id:'p42', entity_id:'e-cmc', summary:'Increase organic farmland to 450,000 hectares', quote:'Increase land farmed organically to 450,000 hectares by 2030', context:'Climate Action Plan 2021', date_made:'2021-11-04', deadline:'2030-12-31', category:'climate', status:'stalled', magnitude:6, tags:['agriculture','organic'], outcome_summary:'Growing but only ~120,000 hectares currently. Would need dramatic acceleration to reach 450,000.' },
+  { id:'p43', entity_id:'e-cmc', summary:'Reduce chemical fertiliser to 300,000 tonnes/year', quote:'Reduce agricultural chemical nitrogen fertiliser use to 300,000 tonnes per year', context:'Climate Action Plan 2021', date_made:'2021-11-04', deadline:'2030-12-31', category:'climate', status:'in_progress', magnitude:6, tags:['agriculture','fertiliser','emissions'], outcome_summary:'Fertiliser use declining. Agriculture accounts for ~37% of emissions. EPA calls progress "particularly slow."' },
+  { id:'p44', entity_id:'e-er', summary:'1,500 electric buses by 2030', quote:'Deliver 1,500 electric buses as part of public transport electrification by 2030', context:'Climate Action Plan 2021', date_made:'2021-11-04', deadline:'2030-12-31', category:'transport', status:'in_progress', magnitude:5, tags:['electric buses','public transport'], outcome_summary:'Electric and hybrid buses being added. First fully electric buses in Dublin. Pace behind target.' },
+  { id:'p45', entity_id:'e-gov', summary:'Invest €165 billion in infrastructure 2021-2030', quote:'Invest €165 billion in public infrastructure from 2021 to 2030', context:'NDP 2021-2030', date_made:'2021-10-04', deadline:'2030-12-31', category:'infrastructure', status:'in_progress', magnitude:8, tags:['NDP','infrastructure','spending'], outcome_summary:'2026-2030 allocations increased to €102.4bn (+30%). Spending occurring but delivery plagued by delays and cost overruns.' },
+];
+
+// ============================================================
+// DATA LOADING
+// ============================================================
+async function loadData() {
+  let entData, promData;
+  try {
+    const [entRes, promRes] = await Promise.all([
+      supabase.from('entities').select('*').eq('active', true),
+      supabase.from('promises').select('*').order('magnitude', { ascending: false })
+    ]);
+
+    if (!entRes.error && !promRes.error && entRes.data.length > 0 && promRes.data.length > 0) {
+      entData = entRes.data;
+      promData = promRes.data;
+      console.log('Loaded from Supabase:', entData.length, 'entities,', promData.length, 'promises');
+    } else {
+      throw new Error('Supabase empty or errored');
+    }
+  } catch(err) {
+    console.log('Using embedded fallback data:', err.message || err);
+    entData = Object.values(FALLBACK_ENTITIES);
+    promData = FALLBACK_PROMISES;
+  }
+
+  entities = {};
+  entData.forEach(e => entities[e.id] = e);
+  promises = promData;
+
+  populateEntityDropdown();
+  render();
+}
+
+// ============================================================
+// REALTIME SUBSCRIPTION
+// ============================================================
+function setupRealtime() {
+  supabase.channel('promises-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'promises' }, () => {
+      loadData();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'entities' }, () => {
+      loadData();
+    })
+    .subscribe();
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function getEntityPromises(entityId) {
+  return promises.filter(p => p.entity_id === entityId);
+}
+
+function matchesFilters(promise) {
+  if (filterStatus !== 'all' && promise.status !== filterStatus) return false;
+  if (filterParty !== 'all') {
+    const e = entities[promise.entity_id];
+    if (!e) return false;
+    const pl = getPartyLabel(e);
+    if (pl !== filterParty) return false;
+  }
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    const e = entities[promise.entity_id];
+    if (!e) return false;
+    const hay = (promise.summary + ' ' + (promise.outcome_summary||'') + ' ' + (promise.tags||[]).join(' ') + ' ' + e.name + ' ' + (e.party||'')).toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+  return true;
+}
+
+function entityMatchesFilters(entityId) {
+  return getEntityPromises(entityId).some(p => matchesFilters(p));
+}
+
+function entityFilteredPromises(entityId) {
+  return getEntityPromises(entityId).filter(matchesFilters);
+}
+
+// ============================================================
+// RENDER: FILTERS & STATS
+// ============================================================
+function renderFilters() {
+  const partySet = new Set();
+  Object.values(entities).forEach(e => partySet.add(getPartyLabel(e)));
+  const partyArr = [...partySet].sort();
+  document.getElementById('partyFilters').innerHTML =
+    `<button class="filter-pill ${filterParty==='all'?'active':''}" onclick="setPartyFilter('all')">All</button>` +
+    partyArr.map(p => {
+      const color = PARTIES[p] ? PARTIES[p].color : '#4a5568';
+      return `<button class="filter-pill party-pill ${filterParty===p?'active':''}" onclick="setPartyFilter('${p.replace(/'/g,"\\'")}')">
+        <span class="party-dot" style="background:${color}"></span>${p}
+      </button>`;
+    }).join('');
+
+  document.getElementById('statusFilters').innerHTML =
+    `<button class="filter-pill ${filterStatus==='all'?'active':''}" onclick="setStatusFilter('all')">All</button>` +
+    ['kept','broken','compromised','in_progress','stalled'].map(k =>
+      `<button class="filter-pill ${filterStatus===k?'active':''}" onclick="setStatusFilter('${k}')">${STATUS_LABELS[k]}</button>`
+    ).join('');
+}
+
+function renderStats() {
+  const filtered = promises.filter(matchesFilters);
+  const counts = {};
+  filtered.forEach(p => counts[p.status] = (counts[p.status]||0) + 1);
+  document.getElementById('statsRow').innerHTML =
+    `<div class="mini-stat"><span class="num">${filtered.length}</span> promises shown</div>` +
+    ['kept','broken','compromised','in_progress','stalled'].map(k =>
+      `<div class="mini-stat"><span class="dot" style="background:${STATUS_COLORS[k]}"></span><span class="num">${counts[k]||0}</span>${STATUS_LABELS[k]}</div>`
+    ).join('');
+}
+
+// ============================================================
+// RENDER: STICKER CARDS
+// ============================================================
+function renderStickers() {
+  const grid = document.getElementById('stickerGrid');
+  const visibleEntities = Object.entries(entities).filter(([id]) => entityMatchesFilters(id));
+
+  if (visibleEntities.length === 0) {
+    grid.innerHTML = '<div class="no-results">No matching stickers found.</div>';
+    return;
+  }
+
+  grid.innerHTML = visibleEntities.map(([id, e]) => {
+    const ep = entityFilteredPromises(id);
+    const total = ep.length;
+    if (total === 0) return '';
+    const kept = ep.filter(p => p.status === 'kept').length;
+    const broken = ep.filter(p => p.status === 'broken').length;
+    const score = total > 0 ? Math.round((kept * 100 + ep.filter(p=>p.status==='compromised').length * 50 + ep.filter(p=>p.status==='in_progress').length * 60) / total) : 0;
+    const partyCSS = getPartyCSS(e);
+    const initials = getInitials(e.name);
+
+    return `
+    <div class="sticker ${partyCSS}" id="sticker-${id}" onclick="toggleSticker('${id}')">
+      <div class="sticker-top">
+        <div class="sticker-avatar">${initials}</div>
+        <div class="sticker-identity">
+          <div class="sticker-name">${e.name}</div>
+          <div class="sticker-title">${e.title || e.entity_type}</div>
+          <div class="sticker-party-badge">${getPartyLabel(e)}</div>
+        </div>
+      </div>
+      <div class="sticker-stats">
+        <div class="stat-cell">
+          <div class="stat-val" style="color:var(--kept)">${kept}</div>
+          <div class="stat-label">Kept</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-val" style="color:var(--broken)">${broken}</div>
+          <div class="stat-label">Broken</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-val" style="color:var(--accent)">${score}</div>
+          <div class="stat-label">Score</div>
+          <div class="score-bar"><div class="fill" style="width:${score}%; background:${score>60?'var(--kept)':score>35?'var(--compromised)':'var(--broken)'}"></div></div>
+        </div>
+      </div>
+      <div class="expand-hint"><span class="arrow">&#9660;</span> ${total} promise${total!==1?'s':''} tracked</div>
+      <div class="sticker-promises">
+        ${ep.sort((a,b) => (b.magnitude||0) - (a.magnitude||0)).map(p => `
+          <div class="promise-row">
+            <div class="status-dot" style="background:${STATUS_COLORS[p.status]||'#666'}"></div>
+            <div class="promise-row-text">
+              <div class="promise-row-summary">${p.summary}</div>
+              <div class="promise-row-outcome">${p.outcome_summary || ''}</div>
+            </div>
+            <div class="promise-row-mag">${p.magnitude||'?'}/10</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleSticker(id) {
+  document.getElementById('sticker-' + id).classList.toggle('expanded');
+}
+
+// ============================================================
+// RENDER: PROMISE LIST VIEW
+// ============================================================
+function renderPromiseList() {
+  const filtered = promises.filter(matchesFilters).sort((a,b) => (b.magnitude||0) - (a.magnitude||0));
+  const list = document.getElementById('promiseList');
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="no-results">No promises match your filters.</div>';
+    return;
+  }
+
+  list.innerHTML = filtered.map(p => {
+    const e = entities[p.entity_id];
+    if (!e) return '';
+    const pc = getPartyColor(e);
+    return `
+    <div class="promise-card" id="pcard-${p.id}" onclick="togglePromiseCard('${p.id}')">
+      <div class="promise-card-header">
+        <span class="status-badge ${p.status}">${STATUS_LABELS[p.status]||p.status}</span>
+        <div class="promise-card-info">
+          <div class="promise-card-summary">${p.summary}</div>
+          <div class="promise-card-meta">
+            <span class="entity-chip"><span class="entity-dot" style="background:${pc}"></span>${e.name}</span>
+            <span>${p.category}</span>
+            <span>${p.date_made}</span>
+            <span>${p.magnitude||'?'}/10</span>
+          </div>
+        </div>
+        <div class="expand-arrow">&#9660;</div>
+      </div>
+      <div class="promise-card-detail">
+        <div class="detail-block"><h4>Original Quote</h4><blockquote>${p.quote}</blockquote></div>
+        ${p.context ? `<div class="detail-block"><h4>Context</h4><p>${p.context}</p></div>` : ''}
+        ${p.outcome_summary ? `<div class="detail-block"><h4>What Actually Happened</h4><p>${p.outcome_summary}</p></div>` : ''}
+        ${p.deadline ? `<div class="detail-block"><h4>Deadline</h4><p>${p.deadline}</p></div>` : ''}
+        <div class="detail-block"><h4>Tags</h4><div class="tag-list">${(p.tags||[]).map(t=>`<span class="tag">${t}</span>`).join('')}</div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function togglePromiseCard(id) {
+  document.getElementById('pcard-' + id).classList.toggle('expanded');
+}
+
+// ============================================================
+// VIEW SWITCHING & FILTERS
+// ============================================================
+function setView(view) {
+  currentView = view;
+  document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.view-tab[onclick="setView('${view}')"]`).classList.add('active');
+  document.getElementById('stickerView').classList.toggle('hidden', view !== 'stickers');
+  document.getElementById('promiseView').classList.toggle('active', view === 'promises');
+  render();
+}
+
+function setPartyFilter(p) { filterParty = p; render(); }
+function setStatusFilter(s) { filterStatus = s; render(); }
+
+function render() {
+  renderFilters();
+  renderStats();
+  if (currentView === 'stickers') renderStickers();
+  else renderPromiseList();
+}
+
+// ============================================================
+// ADD PROMISE MODAL
+// ============================================================
+function populateEntityDropdown() {
+  const sel = document.getElementById('formEntity');
+  sel.innerHTML = Object.entries(entities)
+    .sort((a,b) => a[1].name.localeCompare(b[1].name))
+    .map(([id, e]) => `<option value="${id}">${e.name} (${e.party || e.entity_type})</option>`)
+    .join('');
+}
+
+function openAddModal() {
+  document.getElementById('addModal').classList.add('active');
+}
+
+function closeAddModal() {
+  document.getElementById('addModal').classList.remove('active');
+}
+
+async function submitPromise() {
+  const btn = document.getElementById('formSubmitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  const tags = document.getElementById('formTags').value
+    .split(',').map(t => t.trim()).filter(Boolean);
+
+  const newPromise = {
+    entity_id: document.getElementById('formEntity').value,
+    summary: document.getElementById('formSummary').value.trim(),
+    quote: document.getElementById('formQuote').value.trim(),
+    context: document.getElementById('formContext').value.trim() || null,
+    date_made: document.getElementById('formDate').value,
+    deadline: document.getElementById('formDeadline').value || null,
+    category: document.getElementById('formCategory').value,
+    status: document.getElementById('formStatus').value,
+    magnitude: parseInt(document.getElementById('formMagnitude').value) || 5,
+    specificity: 'measurable',
+    tags: tags,
+    outcome_summary: document.getElementById('formOutcome').value.trim() || null,
+    verified: false
+  };
+
+  if (!newPromise.summary || !newPromise.quote || !newPromise.date_made) {
+    showToast('Please fill in summary, quote, and date.', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Add Promise';
+    return;
+  }
+
+  const { error } = await supabase.from('promises').insert(newPromise);
+
+  if (error) {
+    console.error('Insert error:', error);
+    showToast('Error: ' + error.message, 'error');
+  } else {
+    showToast('Promise added successfully!', 'success');
+    closeAddModal();
+    // Clear form
+    document.getElementById('formSummary').value = '';
+    document.getElementById('formQuote').value = '';
+    document.getElementById('formContext').value = '';
+    document.getElementById('formDate').value = '';
+    document.getElementById('formDeadline').value = '';
+    document.getElementById('formTags').value = '';
+    document.getElementById('formOutcome').value = '';
+    await loadData();
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Add Promise';
+}
+
+// Close modal on overlay click
+document.getElementById('addModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeAddModal();
+});
+
+// ============================================================
+// TOAST
+// ============================================================
+function showToast(msg, type) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = `toast ${type} show`;
+  setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+// ============================================================
+// EVENTS
+// ============================================================
+document.getElementById('searchBox').addEventListener('input', e => {
+  searchQuery = e.target.value;
+  render();
+});
+
+// ============================================================
+// INIT
+// ============================================================
+loadData();
+setupRealtime();
+</script>
+</body>
+</html>
