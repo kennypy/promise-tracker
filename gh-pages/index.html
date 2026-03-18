@@ -457,23 +457,46 @@ const PARTIES = {
   'Sinn Fein':          { css: 'party-sinn-fein',    color: '#326832' },
   'Labour':             { css: 'party-labour',       color: '#cc0000' },
   'Social Democrats':   { css: 'party-social-democrats', color: '#752f8a' },
+  'People Before Profit': { css: 'party-pbp', color: '#e91e63' },
+  'Aontu':              { css: 'party-aontu', color: '#44a546' },
+  'Independent Ireland': { css: 'party-ind-ire', color: '#1a8c6e' },
+  'Workers Party':      { css: 'party-wp', color: '#d50000' },
+  '100% Redress Party': { css: 'party-100redress', color: '#ff6f00' },
+  'Right to Change':    { css: 'party-rtc', color: '#5c6bc0' },
 };
 
+// Normalize party names (handle fadas, aliases)
+const PARTY_ALIASES = {
+  'Fianna Fáil': 'Fianna Fail',
+  'Sinn Féin': 'Sinn Fein',
+  'Labour Party': 'Labour',
+  'Aontú': 'Aontu',
+  'People Before Profit-Solidarity': 'People Before Profit',
+};
+function normalizeParty(name) {
+  if (!name) return name;
+  return PARTY_ALIASES[name] || name;
+}
+
 function getPartyCSS(entity) {
-  if (entity.party && PARTIES[entity.party]) return PARTIES[entity.party].css;
+  const p = normalizeParty(entity.party);
+  if (p && PARTIES[p]) return PARTIES[p].css;
   if (entity.entity_type === 'institution' || entity.entity_type === 'agency') return 'party-institution';
   if (entity.title === 'EU Commissioner') return 'party-eu';
-  return 'party-institution';
+  return 'party-independent';
 }
 
 function getPartyColor(entity) {
-  if (entity.party && PARTIES[entity.party]) return PARTIES[entity.party].color;
+  const p = normalizeParty(entity.party);
+  if (p && PARTIES[p]) return PARTIES[p].color;
   if (entity.entity_type === 'institution' || entity.entity_type === 'agency') return '#4a5568';
-  return '#4a5568';
+  return '#6b7280';
 }
 
 function getPartyLabel(entity) {
-  return entity.party || (entity.entity_type === 'institution' || entity.entity_type === 'agency' ? 'Institution' : 'Other');
+  if (entity.party) return normalizeParty(entity.party);
+  if (entity.entity_type === 'institution' || entity.entity_type === 'agency') return 'Institution';
+  return 'Independent';
 }
 
 function getInitials(name) {
@@ -959,7 +982,7 @@ function renderFilters() {
 
   document.getElementById('statusFilters').innerHTML =
     `<button class="filter-pill ${filterStatus==='all'?'active':''}" onclick="setStatusFilter('all')">All</button>` +
-    ['kept','broken','compromised','in_progress','stalled'].map(k =>
+    ['kept','broken','compromised','in_progress','stalled','made'].map(k =>
       `<button class="filter-pill ${filterStatus===k?'active':''}" onclick="setStatusFilter('${k}')">${STATUS_LABELS[k]}</button>`
     ).join('');
 }
@@ -970,7 +993,7 @@ function renderStats() {
   filtered.forEach(p => counts[p.status] = (counts[p.status]||0) + 1);
   document.getElementById('statsRow').innerHTML =
     `<div class="mini-stat"><span class="num">${filtered.length}</span> promises shown</div>` +
-    ['kept','broken','compromised','in_progress','stalled'].map(k =>
+    ['kept','broken','compromised','in_progress','stalled','made'].map(k =>
       `<div class="mini-stat"><span class="dot" style="background:${STATUS_COLORS[k]}"></span><span class="num">${counts[k]||0}</span>${STATUS_LABELS[k]}</div>`
     ).join('');
 }
