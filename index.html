@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Promise Tracker — Irish Government Accountability</title>
+<script src="config.js" onerror="/* config.js is optional — used for self-hosted deployments */"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
   :root {
@@ -435,8 +436,10 @@
 // ============================================================
 // SUPABASE CLIENT
 // ============================================================
-const SUPABASE_URL = 'https://garydfbiditebefefrvu.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdhcnlkZmJpZGl0ZWJlZmVmcnZ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3ODY1MTgsImV4cCI6MjA4OTM2MjUxOH0.z6G5h1YKJqBh9AaqQjCKODuU5Ygf2Bg8qcmwA3Xh04Q';
+// Runtime config from config.js (self-hosted) takes priority over defaults
+const _cfg = window.__PROMISE_TRACKER_CONFIG__ || {};
+const SUPABASE_URL = _cfg.SUPABASE_URL || 'https://garydfbiditebefefrvu.supabase.co';
+const SUPABASE_ANON_KEY = _cfg.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdhcnlkZmJpZGl0ZWJlZmVmcnZ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3ODY1MTgsImV4cCI6MjA4OTM2MjUxOH0.z6G5h1YKJqBh9AaqQjCKODuU5Ygf2Bg8qcmwA3Xh04Q';
 
 let supabaseClient = null;
 try {
