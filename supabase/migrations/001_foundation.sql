@@ -40,6 +40,7 @@ CREATE TYPE promise_status AS ENUM (
     'kept',           -- delivered as promised
     'broken',         -- deadline passed or explicitly abandoned
     'compromised',    -- partially delivered, materially different
+    'stalled',        -- progress has stalled significantly
     'pivoted',        -- openly changed course with explanation
     'expired',        -- time-bound promise where the window closed quietly
     'disputed'        -- conflicting evidence about fulfillment
