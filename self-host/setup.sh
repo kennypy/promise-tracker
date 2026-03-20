@@ -142,6 +142,10 @@ fi
 # Grant permissions to PostgREST roles
 if [ ! -f volumes/db/init/04_grants.sql ]; then
   cat > volumes/db/init/04_grants.sql <<'SQLEOF'
+-- GoTrue (auth) needs full schema access for migrations
+GRANT ALL ON SCHEMA public TO supabase_auth_admin;
+ALTER ROLE supabase_auth_admin SUPERUSER;
+
 -- Grant read access to anon role (public data)
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
