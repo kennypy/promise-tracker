@@ -16,8 +16,6 @@
 #   docker compose up -d
 ###############################################################################
 
-version: "3.8"
-
 services:
   # ── PostgreSQL ────────────────────────────────────────
   db:
@@ -133,7 +131,7 @@ services:
 
   # ── Supabase Studio (optional admin panel) ────────────
   studio:
-    image: supabase/studio:20241202-4c76a35
+    image: supabase/studio:20250317-6be374d
     restart: unless-stopped
     depends_on:
       kong:
