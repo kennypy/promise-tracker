@@ -51,9 +51,4 @@ runcmd:
   # Enable auto-start on reboot
   - systemctl enable promise-tracker.service
 
-final_message: |
-  =============================================
-  Promise Tracker deployment complete!
-  Frontend: http://$(hostname -I | awk '{print $1}'):8080
-  Studio:   http://$(hostname -I | awk '{print $1}'):3000
-  =============================================
+final_message: "Promise Tracker deployment complete! Cloud-init finished at $TIMESTAMP."
